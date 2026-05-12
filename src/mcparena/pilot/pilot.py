@@ -74,7 +74,22 @@ def run_smoke_adapter() -> int:
 
 
 def run_smoke_budget() -> int:
-    """Calibrate cost on 1 server / 3 tasks / 2 trials / all 5 conditions (~$10)."""
+    """Calibrate cost on 1 server / 1 task / 2 trials / all 5 conditions (~$8)."""
+    raise NotImplementedError("Unit 3 stub")
+
+
+def run_shake_out(server_id: str = "math_mcp") -> int:
+    """Single-server full-conditions sanity check (~$30).
+
+    Question this tier answers: does our baseline number actually match
+    MCP-Bench's published score for this server, and do any of the 4
+    optimization conditions produce non-zero deltas? Gate before authorizing
+    the full pilot ($300 cap).
+
+    Scope: 1 server (default: easy tier = Math MCP) × both MCP-Bench tasks ×
+    3 trials × all 5 conditions = 30 trial-equivalents + 1 MIPROv2 compile +
+    1 GEPA compile. Estimated cost ~$30.
+    """
     raise NotImplementedError("Unit 3 stub")
 
 
@@ -100,6 +115,9 @@ def main(args: argparse.Namespace) -> int:
         return run_smoke_adapter()
     if args.smoke_budget:
         return run_smoke_budget()
+    if args.shake_out:
+        # Default to the easy-tier server; --server flag can override.
+        return run_shake_out(server_id=args.server or "math_mcp")
 
     # Full pilot: iterate (server, condition) per pre-registration sample size.
     # Verifies pre-reg first (Unit 5), respects --server / --condition filters.

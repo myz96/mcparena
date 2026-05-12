@@ -1,20 +1,23 @@
 """Pilot server specifications and MCP-Bench task collections.
 
-`PILOT_SERVERS` and `TASKS_BY_SERVER` are PLACEHOLDERS until Unit 5's Day-1
-sub-sequence picks 3 stratified servers from MCP-Bench (Accenture) based on
-published baseline scores for Claude Sonnet 4.6. The current entries document
-the intended shape only.
+Servers and task IDs are locked from MCP-Bench (Accenture, NeurIPS 2025
+Workshop), pinned to a specific commit (see `benchmark.MCP_BENCH_PINNED_REF`).
 
-Five pilot conditions exposed via the `Condition` literal:
-- baseline   : vanilla dspy.ReAct, no optimization
-- miprov2    : dspy.MIPROv2(auto="light") on program signature
-- gepa       : dspy.GEPA(auto="light", reflection_lm=opus-4-7) on program
-- axis_ii    : brute-force tool-list permutation search wrapping baseline
-- axis_iii   : hand-injected 1-shot example in each tool description
+Three servers chosen by:
+1. No-env-key requirement (easy local setup).
+2. Domain diversity (computation / knowledge / API audit).
+3. Task complexity ranging from deterministic single-step (Math) to
+   multi-step trajectory-heavy (OpenAPI Explorer).
+
+Per-server MCP-Bench published baseline scores are NOT broken out in
+mcpbench's public leaderboard — overall claude-sonnet-4 score is 0.681.
+Per-server difficulty here is estimated from inspecting task descriptions
+in the pinned commit (see `notes` field on each spec).
 """
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Literal
 
 from mcp.client.stdio import StdioServerParameters
@@ -24,18 +27,24 @@ Condition = Literal["baseline", "miprov2", "gepa", "axis_ii", "axis_iii"]
 DifficultyTier = Literal["easy", "medium", "hard"]
 Transport = Literal["stdio", "http"]
 
+# Resolved relative to repo root; MCP-Bench's server binaries live here once
+# its `mcp_servers/install.sh` has been run. The smoke-adapter run is
+# responsible for verifying these paths resolve to launchable subprocesses.
+_MCP_BENCH_SERVERS_ROOT = Path("third_party/mcp-bench-tasks/mcp_servers")
+
 
 class ServerSpec(BaseModel):
     """Specification of a pilot MCP server target."""
 
     name: str
     mcp_bench_id: str
-    baseline_score_mcp_bench: float  # pinned from MCP-Bench leaderboard for Sonnet 4.6
+    baseline_score_mcp_bench: float  # 0.0 = not yet measured (per-server scores unpublished)
     difficulty_tier: DifficultyTier
     stratification_rationale: str
     transport: Transport
     command: str
     args: list[str]
+    cwd: str | None = None
     env: dict[str, str] = {}
     notes: str = ""
 
@@ -45,50 +54,63 @@ class ServerSpec(BaseModel):
             command=self.command,
             args=self.args,
             env=self.env,
+            cwd=self.cwd,
         )
 
 
-# PLACEHOLDER — populated during Unit 5 Day-1 sub-sequence.
-# Three stratified servers: one easy / one medium / one hard for Sonnet 4.6
-# per MCP-Bench's published leaderboard.
 PILOT_SERVERS: list[ServerSpec] = [
     ServerSpec(
-        name="filesystem",
-        mcp_bench_id="<TBD>",
-        baseline_score_mcp_bench=0.0,
+        name="math_mcp",
+        mcp_bench_id="Math MCP",
+        baseline_score_mcp_bench=0.0,  # per-server scores unpublished by MCP-Bench
         difficulty_tier="easy",
-        stratification_rationale="PLACEHOLDER — confirm after MCP-Bench leaderboard review",
+        stratification_rationale=(
+            "Computational tools (sum, mean, std-dev, percentile, etc.) over "
+            "small numeric arrays — deterministic, short trajectories, high "
+            "expected baseline. Ceiling test for optimization."
+        ),
         transport="stdio",
-        command="npx",
-        args=["-y", "@modelcontextprotocol/server-filesystem", "pilot-sandbox/filesystem"],
-        notes="Anthropic reference server; ceiling test",
+        command="node",
+        args=["build/index.js"],
+        cwd=str(_MCP_BENCH_SERVERS_ROOT / "math-mcp"),
+        notes="Estimated easy tier from MCP-Bench task inspection (math_mcp_000, math_mcp_001).",
     ),
     ServerSpec(
-        name="<server_medium>",
-        mcp_bench_id="<TBD>",
+        name="wikipedia",
+        mcp_bench_id="Wikipedia",
         baseline_score_mcp_bench=0.0,
         difficulty_tier="medium",
-        stratification_rationale="PLACEHOLDER",
+        stratification_rationale=(
+            "Search + extract + synthesize from real-world articles. Multi-step "
+            "but bounded; realistic agent usage pattern; moderate baseline."
+        ),
         transport="stdio",
-        command="<TBD>",
-        args=[],
-        notes="PLACEHOLDER",
+        command="uv",
+        args=["run", "python", "-m", "wikipedia_mcp"],
+        cwd=str(_MCP_BENCH_SERVERS_ROOT / "wikipedia-mcp"),
+        notes="Estimated medium tier (wikipedia_000, wikipedia_001).",
     ),
     ServerSpec(
-        name="<server_hard>",
-        mcp_bench_id="<TBD>",
+        name="openapi_explorer",
+        mcp_bench_id="OpenAPI Explorer",
         baseline_score_mcp_bench=0.0,
         difficulty_tier="hard",
-        stratification_rationale="PLACEHOLDER",
+        stratification_rationale=(
+            "Multi-step comparative audits across multiple API specifications "
+            "(5+ tool calls per task). Long trajectories; biggest headroom for "
+            "optimization to show value; estimated hardest of the no-env-key set."
+        ),
         transport="stdio",
-        command="<TBD>",
-        args=[],
-        notes="PLACEHOLDER",
+        command="node",
+        args=["index.js", "run"],
+        cwd=str(_MCP_BENCH_SERVERS_ROOT / "openapi-mcp-server"),
+        notes="Estimated hard tier (openapi_explorer_000, openapi_explorer_001).",
     ),
 ]
 
 
-# Per-server task lists. Populated from `mcparena.pilot.benchmark.parse_server_tasks`
-# during Unit 5; stored here as a flat dict keyed by ServerSpec.name.
-# Empty until benchmark loader integration.
+# Per-server task lists populated from MCP-Bench's
+# `tasks/mcpbench_tasks_single_runner_format.json` via
+# `mcparena.pilot.benchmark.parse_server_tasks`. Empty until the loader runs
+# (during pilot main() entry; not at module import time).
 TASKS_BY_SERVER: dict[str, list[Any]] = {spec.name: [] for spec in PILOT_SERVERS}

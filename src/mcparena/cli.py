@@ -26,7 +26,14 @@ def _build_parser() -> argparse.ArgumentParser:
     smoke.add_argument(
         "--smoke-budget",
         action="store_true",
-        help="Calibrate cost on 1 server / 3 tasks / 2 trials (~$10)",
+        help="Calibrate cost on 1 server / 1 task / 2 trials (~$8)",
+    )
+    smoke.add_argument(
+        "--shake-out",
+        action="store_true",
+        help="Single-server full-conditions sanity check (~$30): does our "
+        "baseline match MCP-Bench's published score? do optimizers move "
+        "the needle at all? Gate before authorizing the full pilot.",
     )
     pilot.add_argument(
         "--server",

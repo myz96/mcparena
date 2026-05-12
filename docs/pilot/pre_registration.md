@@ -1,20 +1,30 @@
 # mcparena Pilot — Pre-Registration
 
-**Status:** DRAFT — server selection and task IDs to be locked during Day-1 sub-sequence (clone MCP-Bench → review leaderboard → pick 3 stratified servers → finalize this document → `git tag -a pilot-prereg-v1`).
+**Status:** READY FOR TAG. Server selection and task IDs are locked from the
+pinned MCP-Bench commit (see below). The `locked_at_utc` timestamp is set when
+this document is committed and `git tag -a pilot-prereg-v1` is run.
 
-This document is the locked methodology for the mcparena pilot. It is committed to the public repository and git-tagged (`pilot-prereg-v1`) **before any pilot results exist**. Verify via `git log` that the tag predates the `pilot-results/` artifacts in the same branch.
+This document is the locked methodology for the mcparena pilot. It is
+committed to the public repository and git-tagged (`pilot-prereg-v1`) **before
+any pilot results exist**. Verify via `git log` that the tag predates any
+`pilot-results/` artifacts on the same branch.
 
 ## Pilot question
 
-Will any DSPy optimization mechanism meaningfully improve MCP server tool-use success rates on the published MCP-Bench (Accenture, NeurIPS 2025) benchmark?
+Will any DSPy optimization mechanism meaningfully improve MCP server tool-use
+success rates on the published MCP-Bench (Accenture, NeurIPS 2025) benchmark?
 
 ## Metric
 
-**Mean task success rate per (server, condition).** Success is binary per task: judged by the `Assess` Signature (see `src/mcparena/pilot/judge.py`) using Claude Sonnet 4.6 as the same-model judge.
+**Mean task success rate per (server, condition).** Success is binary per
+task: judged by the `Assess` Signature (see `src/mcparena/pilot/judge.py`)
+using Claude Sonnet 4.6 as the same-model judge.
 
 **Delta** for each non-baseline condition X: `delta = mean(X) − mean(baseline)`.
 
-**Confidence interval:** 95% paired bootstrap CI via `scipy.stats.bootstrap` with `n_resamples=1000`, `confidence_level=0.95`, `paired=True`, `method="percentile"`.
+**Confidence interval:** 95% paired bootstrap CI via `scipy.stats.bootstrap`
+with `n_resamples=1000`, `confidence_level=0.95`, `paired=True`,
+`method="percentile"`.
 
 ## Conditions (5)
 
@@ -22,81 +32,134 @@ Will any DSPy optimization mechanism meaningfully improve MCP server tool-use su
 |---|---|---|
 | 1 | `baseline` | Vanilla `dspy.ReAct` against MCP server, no optimization. |
 | 2 | `miprov2` | `dspy.MIPROv2(auto="light")` over program signature. |
-| 3 | `gepa` | `dspy.GEPA(auto="light")` with reflection LM Claude Opus 4.7 (`max_tokens=16000`, `temperature=1.0`). |
+| 3 | `gepa` | `dspy.GEPA(auto="light")` via `gepa.adapters.mcp_adapter.MCPAdapter`. Reflection LM = same model (Claude Sonnet 4.6), `temperature=1.0`, `max_tokens=16000`. |
 | 4 | `axis_ii` | Brute-force permutation search over the tool list (≤4 permutations per server). No optimizer; measures whether tool-list ordering alone changes outcomes. |
-| 5 | `axis_iii` | Hand-inject a worked 1-shot example into each tool's description string. Re-evaluate. |
+| 5 | `axis_iii` | Hand-inject a 1-shot example into each tool's description string. Re-evaluate. |
 
-Rationale for five conditions: GEPA and MIPROv2 share a failure mode (both optimize signature/prompt text via Bayesian or reflective methods); if mature MCP tool descriptions are already well-tuned, both stagnate together. Axes (ii) and (iii) are mechanically distinct levers that might catch what prompt optimizers miss. Cost overhead ~$20.
+Rationale for five conditions: GEPA and MIPROv2 share a failure mode (both
+optimize signature/prompt text); if mature MCP tool descriptions are already
+well-tuned, both stagnate together. Axes (ii) and (iii) are mechanically
+distinct levers that might catch what prompt optimizers miss.
 
 ## Task source
 
-[Accenture/mcp-bench](https://github.com/Accenture/mcp-bench), NeurIPS 2025 Workshop on Scaling Environments for Agents.
+[Accenture/mcp-bench](https://github.com/Accenture/mcp-bench), NeurIPS 2025
+Workshop on Scaling Environments for Agents. License: Apache 2.0.
 
-**Pinned commit:** `<TBD — set during Day-1 sub-sequence>`
+**Pinned commit:** `7a8eaeae83a842a2949080acc5473f65e1569daf`
 
 **Task field mapping** (from MCP-Bench JSON → `dspy.Example`):
 
-| MCP-Bench field | `dspy.Example` field | Purpose |
-|---|---|---|
-| `task_id` | `task_id` | Traceability |
-| `user_query` | `user_request` | Agent input |
-| `success_criteria` (collapsed to "Task succeeds if ALL of: (a)..., (b)...") | `expected_outcome` | Judge ground truth |
-| (entire record) | `mcp_bench_rubric` | Preserved for audit |
+| MCP-Bench field | `dspy.Example` field |
+|---|---|
+| `task_id` | `task_id` (traceability) |
+| `task_description` | `user_request` (agent input) AND `expected_outcome` (judge ground truth — MCP-Bench has no separate criteria field; the description IS the criteria) |
+| `fuzzy_description` | `mcp_bench_fuzzy` (preserved; not used in pilot) |
+| `dependency_analysis`, `distraction_servers` | `mcp_bench_metadata` (preserved for audit) |
 
-`expected_tools` is intentionally NOT mapped — pilot scores on outcome (did the agent achieve the goal?) not on trajectory matching MCP-Bench's reference path.
+`expected_tools` (where present) is intentionally NOT mapped — pilot scores on
+outcome, not on trajectory matching MCP-Bench's reference path.
 
-## Servers (3, stratified by published baseline)
+## Servers (3, stratified by estimated difficulty)
 
-To be selected during Day-1 sub-sequence by reviewing the MCP-Bench leaderboard for Claude Sonnet 4.6's per-server baseline scores, then picking one each across difficulty tiers and filtered to stdio-launchable on the development machine.
+MCP-Bench publishes only an overall leaderboard (claude-sonnet-4 ranks 5 at
+0.681 overall); per-server scores are NOT published. Stratification here is
+inferred from inspecting task complexity in the pinned commit.
 
-| Tier | Target baseline (Sonnet 4.6) | Server | MCP-Bench task IDs |
+| Tier | Server | `mcp_bench_id` | Task IDs |
 |---|---|---|---|
-| Easy | ~70-90% (low headroom; ceiling test) | `<TBD>` | `<TBD>` |
-| Medium | ~40-60% (workhorse; medium headroom) | `<TBD>` | `<TBD>` |
-| Hard | <30% (most headroom; cherry of optimization) | `<TBD>` | `<TBD>` |
+| Easy | Math MCP | `Math MCP` | `math_mcp_000`, `math_mcp_001` |
+| Medium | Wikipedia | `Wikipedia` | `wikipedia_000`, `wikipedia_001` |
+| Hard | OpenAPI Explorer | `OpenAPI Explorer` | `openapi_explorer_000`, `openapi_explorer_001` |
+
+Rationale:
+- **Math MCP** (easy): deterministic numeric ops over small arrays; short
+  trajectories; high expected baseline.
+- **Wikipedia** (medium): search + extract + synthesize across articles;
+  bounded multi-step.
+- **OpenAPI Explorer** (hard): 5+ tool-call comparative audits across multiple
+  API specs; biggest headroom for optimization.
+
+All three are no-env-key, stdio-launchable from MCP-Bench's `mcp_servers/`
+directory after `install.sh`.
 
 ## Sample size
 
-3 servers × ~10 tasks per server × 5 trials per condition × 5 conditions ≈ **750 trial-equivalents** (plus MIPROv2 and GEPA compile rollouts in addition). Per-server task counts pinned in the server table above.
+3 servers × 2 tasks per server × 5 trials per condition × 5 conditions
+= **150 trial-equivalents** (plus MIPROv2 and GEPA compile rollouts).
+
+Per-server task counts are 2 each (MCP-Bench ships exactly 2 single-server
+tasks per server). Lower statistical power than originally planned for; the
+pilot is a feasibility / mechanism-validation spike, not a powered effect-size
+study. Phase 1 will augment with multi-server tasks and/or MCP-Universe.
+
+## Cost discipline
+
+| Tier | Scope | Estimated cost |
+|---|---|---|
+| `--smoke-adapter` | 1 task, 1 trial, GEPA adapter load test | ~$1 |
+| `--smoke-budget` | 1 server, 1 task, 2 trials, all 5 conditions | ~$8 |
+| `--shake-out` | 1 server (Math MCP default), both tasks, 3 trials, all 5 conditions | ~$30 |
+| Full pilot | 3 servers, all tasks, 5 trials, all 5 conditions | ~$60-80 |
+
+Hard cap: **$300 cumulative**. Runner halts before exceeding. $50 reserved
+for memo + retries; total wallet budget $350.
 
 ## Stopping rule
 
-All planned trials run. **No early stopping.** The only halt is the cumulative cost cap of $300 (with $50 buffer reserved for memo + retries; total budget $350).
+All planned trials run. **No early stopping.** The only halt is the cumulative
+cost cap.
 
 ## Trial determinism
 
-- Program LM: `anthropic/claude-sonnet-4-6`, `temperature=0.7`, `max_tokens=8192`
-- Reflection LM (GEPA only): `anthropic/claude-opus-4-7`, `temperature=1.0`, `max_tokens=16000`
-- No seed pinning across trials. Variance across trials is intentional and is what the bootstrap CI integrates over.
+- Program / judge LM: `anthropic/claude-sonnet-4-6`, `temperature=0.7`,
+  `max_tokens=8192`
+- Reflection LM (GEPA only): `anthropic/claude-sonnet-4-6`, `temperature=1.0`,
+  `max_tokens=16000` (v5.1 update — dropped Opus 4.7 for cost)
+- No seed pinning across trials. Variance is intentional and integrated by
+  the bootstrap CI.
 
-## Decision criteria
-
-After all conditions complete and per-(server, condition) CIs are computed:
+## Decision criteria (after all conditions complete)
 
 | Outcome | Interpretation | Next step |
 |---|---|---|
-| **PROCEED** | ANY of `{miprov2, gepa, axis_ii, axis_iii}` achieves both `CI low > 0` AND `point estimate ≥ 10 percentage points` on ≥2 of 3 servers | Begin full Builder plan: leaderboard URL, server-author outreach, GitHub Action, multi-benchmark coverage, cross-model judging. |
-| **MIXED** | Strong signal on 1 server only, OR weak-but-positive signal (`CI low > 0`, point estimate 5-10pp) across all 3 | Narrower Builder: optimizer ships as research module; defer leaderboard until mechanism replicates. |
+| **PROCEED** | ANY of `{miprov2, gepa, axis_ii, axis_iii}` achieves both `CI low > 0` AND `point estimate ≥ 10 percentage points` on ≥2 of 3 servers | Begin full Builder plan: leaderboard URL, server-author outreach, GitHub Action, cross-model judging, MCP-Universe expansion. |
+| **MIXED** | Strong signal on 1 server only, OR weak-but-positive signal (`CI low > 0`, point estimate 5-10pp) across all 3 | Narrower Builder: optimizer ships as research module; defer public leaderboard until mechanism replicates on richer benchmark. |
 | **PIVOT** | No condition achieves `CI low > 0` on ≥2 servers | Drop the DSPy-optimization wedge. Re-scope mcparena around auto-task-generation, failure-taxonomy, or a different moat. |
 
 ## Reproducibility
 
-- `git rev-parse pilot-prereg-v1` must equal the commit SHA on the branch that produces `pilot-results/`.
-- `mcparena pilot` refuses to run if the working tree is dirty (override with `--allow-dirty` for smoke runs only).
-- All trial outputs saved to `pilot-results/` (gitignored; sanitized excerpts go into the public memo).
-- The pilot memo published after results includes a verbatim copy of this pre-registration as an appendix.
+- `git rev-parse pilot-prereg-v1` must equal the commit SHA on the branch that
+  produces `pilot-results/`.
+- `mcparena pilot` refuses to run if the working tree is dirty (override with
+  `--allow-dirty` for smoke / shake-out runs only).
+- All trial outputs saved to `pilot-results/` (gitignored; sanitized excerpts
+  go into the public memo).
+- The pilot memo published after results includes a verbatim copy of this
+  pre-registration as an appendix.
 
-## Out of scope for pilot
+## Methodology disclosures
 
-Per plan v5.1 separation of pilot vs full Builder:
+- **Same-model judging:** Sonnet 4.6 judges its own outputs. MCP-Bench's own
+  reported numbers use OpenAI o4-mini as the judge — direct comparison to
+  their leaderboard is therefore approximate, not strict. The memo will
+  report both our absolute scores AND the absolute differences vs MCP-Bench's
+  published values for context, with the disclosure that the judges differ.
+- **Cross-model judging deferred to Phase 1.**
+- **Per-server baseline scores not published by MCP-Bench;** we measure our
+  own baseline as the per-server reference.
 
-- Cross-model judging (Phase 1 deliverable; pilot uses same-model)
-- 50-task gold-set judge calibration with ≥85% agreement (Phase 1; pilot ships descriptive 10-transcript fixture)
-- Public leaderboard URL, server-author outreach, GitHub Action — all Phase 1
-- Additional benchmarks (MCP-Universe, MCPMark, MCPVerse) — Phase 1 expansion
+## Out of scope for pilot (Phase 1 deliverables)
+
+- Cross-model judging (Gemini judges Claude)
+- 50-task gold-set judge calibration with ≥85% agreement
+- Public leaderboard URL, server-author outreach, GitHub Action
+- Additional benchmarks (MCP-Universe, MCPMark, MCPVerse)
+- Per-server baseline replication of MCP-Bench's o4-mini-judged scores
 
 ## Lock
 
-**This document is locked at:** `<TBD — UTC timestamp set during Day-1 sub-sequence>`
-**Git tag:** `pilot-prereg-v1` (annotated; `git tag -a pilot-prereg-v1 -m "Pilot pre-registration"`)
-**Verification:** `git show pilot-prereg-v1` must match this file's content at the tagged commit.
+**Locked at UTC:** *set when `git tag -a pilot-prereg-v1` runs*
+**Git tag:** `pilot-prereg-v1` (annotated)
+**Verification:** `git show pilot-prereg-v1` must match this file's content
+at the tagged commit.

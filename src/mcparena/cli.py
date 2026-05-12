@@ -53,20 +53,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "pilot":
-        try:
-            from mcparena.pilot import pilot as pilot_module  # type: ignore[import-not-found]
-        except ImportError as exc:
-            print(
-                f"error: pilot module not yet implemented — {exc}",
-                file=sys.stderr,
-            )
-            print(
-                "       (this is expected if Unit 3 of the scaffold plan hasn't run yet)",
-                file=sys.stderr,
-            )
-            return 1
-        result: int = pilot_module.main(args)
-        return result
+        from mcparena.pilot import pilot as pilot_module
+
+        return pilot_module.main(args)
 
     parser.print_help()
     return 1

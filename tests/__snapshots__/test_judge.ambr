@@ -1,0 +1,20 @@
+# serializer version: 1
+# name: test_assess_signature_snapshot
+  '''
+  class: Assess
+  docstring: Judge whether the agent's tool-use trajectory accomplished the user's task.
+  
+      Examine the user_request, the full trajectory (reasoning + tool calls + tool
+      outputs), and the final answer. Return success=True only if the user's task
+      was completed correctly via appropriate tool use. Provide a one-sentence
+      reason that names the specific success or failure mode.
+      
+  fields:
+    - expected_outcome [input] What success looks like for this task
+    - final_answer [input] ${final_answer}
+    - reason [output] ${reason}
+    - success [output] ${success}
+    - trajectory [input] Full ReAct trajectory (reasoning + tool calls + outputs)
+    - user_request [input] ${user_request}
+  '''
+# ---

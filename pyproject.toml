@@ -93,7 +93,9 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra --strict-markers"
+# Exclude live (API-key-requiring) tests by default. Run them explicitly via
+# `uv run pytest -m live` after exporting ANTHROPIC_API_KEY.
+addopts = "-ra --strict-markers -m 'not live'"
 markers = [
     "live: tests requiring live API keys (opt-in via -m live)",
 ]

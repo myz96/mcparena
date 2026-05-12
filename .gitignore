@@ -53,8 +53,17 @@ pilot-sandbox/
 .env
 .env.local
 
-# Vendored third-party (gitignored to keep repo small; clone on demand)
-third_party/*/
+# Vendored third-party (gitignored to keep repo small; clone on demand).
+# Whole directory ignored except the .gitkeep placeholder, so flat files
+# accidentally placed in third_party/ are also blocked.
+third_party/*
+!third_party/.gitkeep
+
+# Secret patterns — defense in depth even when files are explicitly added
+**/api_key
+**/.env*
+**/credentials*
+**/secrets.*
 
 # Raw planning transcripts — see Docs hygiene in plan v5.1
 docs/_drafts/

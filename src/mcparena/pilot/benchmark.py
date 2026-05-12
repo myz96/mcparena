@@ -4,12 +4,10 @@ Pins to a specific MCP-Bench commit. The repo is cloned (gitignored) on
 demand; tasks are parsed into `dspy.Example` lists keyed by the
 `mcp_bench_id` of each pilot server.
 
-Per plan v5.1 — Day-1 sub-sequence inspected the pinned commit's task format
-and locked the field mapping below. MCP-Bench does NOT publish explicit
-success-criteria fields; `task_description` is itself the success
-specification (a multi-step procedure narrative). We set both
-`Example.user_request` and `Example.expected_outcome` to that narrative so
-the `Assess` judge has a single source of truth for "what success looks like."
+After `git checkout`, the resolved HEAD SHA is verified to match the pinned
+constant. A mismatch (force-push, ref rewrite, etc.) raises and refuses to
+run — protects against running attacker-controlled subprocesses from a
+tampered clone.
 """
 
 from __future__ import annotations
@@ -26,20 +24,38 @@ SINGLE_TASKS_FILE = "tasks/mcpbench_tasks_single_runner_format.json"
 
 
 def ensure_mcp_bench_cloned(dest: Path = DEFAULT_DEST) -> Path:
-    """Clone or update Accenture/mcp-bench at the pinned ref. Idempotent."""
+    """Clone Accenture/mcp-bench at the pinned ref. Idempotent; verifies SHA.
+
+    Raises ``RuntimeError`` if the resolved HEAD SHA does not equal
+    ``MCP_BENCH_PINNED_REF`` after checkout (defends against upstream tamper /
+    force-push by refusing to launch MCP servers from an unverified tree).
+    """
     dest.parent.mkdir(parents=True, exist_ok=True)
     if not dest.exists():
         subprocess.run(["git", "clone", MCP_BENCH_REPO, str(dest)], check=True)
     subprocess.run(["git", "-C", str(dest), "fetch", "--all"], check=True)
     subprocess.run(["git", "-C", str(dest), "checkout", MCP_BENCH_PINNED_REF], check=True)
+
+    resolved = subprocess.check_output(
+        ["git", "-C", str(dest), "rev-parse", "HEAD"], text=True
+    ).strip()
+    if resolved != MCP_BENCH_PINNED_REF:
+        raise RuntimeError(
+            f"MCP-Bench checkout SHA mismatch — expected {MCP_BENCH_PINNED_REF}, "
+            f"got {resolved}. Refusing to launch servers from an unverified tree."
+        )
     return dest
 
 
-def _load_single_server_tasks(source: Path) -> dict[str, list[dict[str, Any]]]:
-    """Load the single-server tasks JSON and index by `server_name`."""
+def _load_single_server_tasks(source: Path) -> dict[str, list[dict[str, Any]]] | None:
+    """Load the single-server tasks JSON and index by `server_name`.
+
+    Returns ``None`` if the file is absent (clone not yet run); callers
+    distinguish "not cloned" from "cloned but id missing".
+    """
     path = source / SINGLE_TASKS_FILE
     if not path.exists():
-        return {}
+        return None
     data = json.loads(path.read_text())
     return {entry["server_name"]: entry["tasks"] for entry in data.get("server_tasks", [])}
 
@@ -52,25 +68,32 @@ def parse_server_tasks(
 
     Field mapping (MCP-Bench -> dspy.Example):
       task_id           -> Example.task_id
-      task_description  -> Example.user_request (agent input)
-      task_description  -> Example.expected_outcome (same; MCP-Bench has no
-                           separate success-criteria field — the description
-                           IS the criteria)
-      fuzzy_description -> Example.mcp_bench_fuzzy
+      task_description  -> Example.user_request (agent input AND success criteria)
+      fuzzy_description -> Example.mcp_bench_fuzzy (preserved, not used in pilot)
       dependency_analysis, distraction_servers -> Example.mcp_bench_metadata
 
-    Returns an empty list if the source dir is not yet cloned.
+    Returns an empty list if the source dir is not yet cloned (callers should
+    call `ensure_mcp_bench_cloned` first). Raises ``KeyError`` if the source
+    IS cloned but the given `mcp_bench_id` is absent — a typo, not a missing
+    clone.
     """
-    import dspy  # lazy
+    import dspy
 
     indexed = _load_single_server_tasks(source)
-    raw_tasks = indexed.get(mcp_bench_id, [])
+    if indexed is None:
+        return []
+    if mcp_bench_id not in indexed:
+        valid = sorted(indexed.keys())
+        raise KeyError(
+            f"mcp_bench_id {mcp_bench_id!r} not found in MCP-Bench task file. Valid ids: {valid}"
+        )
+
+    raw_tasks = indexed[mcp_bench_id]
     examples: list[Any] = []
     for t in raw_tasks:
         ex = dspy.Example(
             task_id=t["task_id"],
             user_request=t["task_description"],
-            expected_outcome=t["task_description"],
             mcp_bench_fuzzy=t.get("fuzzy_description", ""),
             mcp_bench_metadata={
                 "dependency_analysis": t.get("dependency_analysis"),

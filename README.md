@@ -39,7 +39,7 @@ mcparena pilot
 
 | Layer | Tool |
 |---|---|
-| Program / judge LM | Claude Sonnet 4.6 |
+| Program / judge LM | Claude Sonnet 4 (via OpenRouter — matches MCP-Bench's published baseline) |
 | GEPA reflection LM | Claude Opus 4.7 |
 | Optimizers | DSPy MIPROv2 + GEPA (ICLR 2026 oral, native MCP adapter) |
 | Task source | MCP-Bench (Accenture) |

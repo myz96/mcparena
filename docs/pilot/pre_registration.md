@@ -32,7 +32,7 @@ with `n_resamples=1000`, `confidence_level=0.95`, `paired=True`,
 |---|---|---|
 | 1 | `baseline` | Vanilla `dspy.ReAct` against MCP server, no optimization. |
 | 2 | `miprov2` | `dspy.MIPROv2(auto="light")` over program signature. |
-| 3 | `gepa` | `dspy.GEPA(auto="light")` via `gepa.adapters.mcp_adapter.MCPAdapter`. Reflection LM = same model (Claude Sonnet 4.6), `temperature=1.0`, `max_tokens=16000`. |
+| 3 | `gepa` | `dspy.GEPA(auto="light")` via `gepa.adapters.mcp_adapter.MCPAdapter`. Reflection LM = same model (Claude Sonnet 4 via OpenRouter), `temperature=1.0`, `max_tokens=16000`. |
 | 4 | `axis_ii` | Brute-force permutation search over the tool list (≤4 permutations per server). No optimizer; measures whether tool-list ordering alone changes outcomes. |
 | 5 | `axis_iii` | Hand-inject a 1-shot example into each tool's description string. Re-evaluate. |
 
@@ -112,10 +112,15 @@ cost cap.
 
 ## Trial determinism
 
-- Program / judge LM: `anthropic/claude-sonnet-4-6`, `temperature=0.7`,
-  `max_tokens=8192`
-- Reflection LM (GEPA only): `anthropic/claude-sonnet-4-6`, `temperature=1.0`,
-  `max_tokens=16000` (v5.1 update — dropped Opus 4.7 for cost)
+- Program / judge LM: `openrouter/anthropic/claude-sonnet-4`,
+  `temperature=0.7`, `max_tokens=8192`
+- Reflection LM (GEPA only): `openrouter/anthropic/claude-sonnet-4`,
+  `temperature=1.0`, `max_tokens=16000`
+- API routing: OpenRouter (single `OPENROUTER_API_KEY` for all providers).
+  Matches MCP-Bench's published setup; routes to Anthropic for Claude calls.
+- Model choice rationale: MCP-Bench's published baseline for Anthropic is
+  "claude-sonnet-4" (Sonnet 4.0, score 0.681). Using the same model gives
+  apples-to-apples comparison.
 - No seed pinning across trials. Variance is intentional and integrated by
   the bootstrap CI.
 

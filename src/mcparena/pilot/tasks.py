@@ -27,10 +27,20 @@ Condition = Literal["baseline", "miprov2", "gepa", "axis_ii", "axis_iii"]
 DifficultyTier = Literal["easy", "medium", "hard"]
 Transport = Literal["stdio", "http"]
 
-# Resolved relative to repo root; MCP-Bench's server binaries live here once
-# its `mcp_servers/install.sh` has been run. The smoke-adapter run is
-# responsible for verifying these paths resolve to launchable subprocesses.
-_MCP_BENCH_SERVERS_ROOT = Path("third_party/mcp-bench-tasks/mcp_servers")
+
+def _repo_root() -> Path:
+    """Walk up from this file to find the repo root (the dir containing pyproject.toml)."""
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        if (parent / "pyproject.toml").exists():
+            return parent
+    # Fallback: return the cwd. The smoke-adapter run validates path resolution.
+    return Path.cwd()
+
+
+# Absolute path to MCP-Bench's server binaries (after `mcp_servers/install.sh`).
+# Resolved from __file__ so `mcparena pilot` works regardless of cwd at invocation.
+_MCP_BENCH_SERVERS_ROOT = _repo_root() / "third_party/mcp-bench-tasks/mcp_servers"
 
 
 class ServerSpec(BaseModel):

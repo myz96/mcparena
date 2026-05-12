@@ -66,6 +66,11 @@ def get_lm(model_id: str = DEFAULT_PILOT_MODEL, role: Role = "program") -> Any:
             "api_key": os.environ.get(api_key_env),
             "temperature": 1.0 if is_reflection else 0.7,
             "max_tokens": 16000 if is_reflection else 8192,
+            # cache=False is critical: pilot replicates each task n_trials times
+            # to measure variance. With cache=True (dspy.LM default), trials
+            # 2..N hit the litellm cache and return identical scores, collapsing
+            # bootstrap CI to ~zero width — clean-looking but wrong.
+            "cache": False,
         }
         if is_openrouter:
             # LiteLLM sometimes fails to auto-resolve the OpenRouter base for

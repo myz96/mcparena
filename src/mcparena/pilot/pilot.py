@@ -1,22 +1,4 @@
-"""mcparena pilot runner — orchestrates the 5-condition spike.
-
-Live implementation of the pre-registered pilot. Each `run_*` function:
-1. Loads MCP-Bench tasks for the target server via `parse_server_tasks`.
-2. Builds a `dspy.ReAct` program with the MCP server's tools wrapped as
-   `dspy.Tool` closures (via `tools.make_tools`).
-3. (Where applicable) compiles the program with `dspy.MIPROv2` /
-   `dspy.GEPA` / axis-specific wrapper.
-4. Evaluates via `dspy.Evaluate` with `failure_score=0.0` and our
-   `judge_metric_evaluate` metric.
-5. Absorbs token-usage into `costs.CostState` and checks caps.
-
-Cost discipline (Sonnet 4 via OpenRouter; $3/M in, $15/M out):
-- baseline / axis_ii / axis_iii  : Sonnet trials only        (~$10-15)
-- miprov2                        : MIPROv2 compile + re-eval (~$20-25)
-- gepa                           : GEPA compile + reflection (~$30-40)
-- hard cap                       : $300 (raises RuntimeError)
-- reflection share gate          : >60% of total raises
-"""
+"""mcparena pilot runner — orchestrates the 5-condition spike."""
 
 from __future__ import annotations
 
@@ -38,16 +20,10 @@ RESULTS_DIR = Path("pilot-results")
 CONDITION_ORDER = ["baseline", "miprov2", "gepa", "axis_ii", "axis_iii"]
 
 
-# ---- validation / setup helpers ----
-
-
-def _valid_server_ids() -> set[str]:
-    return {s.name for s in PILOT_SERVERS}
-
-
 def _validate_server_id(server_id: str) -> None:
-    if server_id not in _valid_server_ids():
-        raise ValueError(f"Unknown server_id {server_id!r}. Valid: {sorted(_valid_server_ids())}")
+    valid = {s.name for s in PILOT_SERVERS}
+    if server_id not in valid:
+        raise ValueError(f"Unknown server_id {server_id!r}. Valid: {sorted(valid)}")
 
 
 def _find_spec(server_id: str) -> ServerSpec:
@@ -58,20 +34,27 @@ def _find_spec(server_id: str) -> ServerSpec:
 
 
 def _assert_clean_tree(allow_dirty: bool) -> None:
-    """R8: full pilot refuses to run on a dirty working tree."""
+    """R8 from pre-reg — full pilot refuses to run on a dirty working tree.
+
+    Uses `git -C <mcparena-root>` (resolved from this file) so invoking
+    `mcparena pilot` from inside another repo still checks mcparena itself.
+    """
     if allow_dirty:
         return
+    repo_root = Path(__file__).resolve().parents[3]
     try:
-        status = subprocess.check_output(["git", "status", "--porcelain"], text=True).strip()
+        status = subprocess.check_output(
+            ["git", "-C", str(repo_root), "status", "--porcelain"], text=True
+        ).strip()
     except (subprocess.CalledProcessError, FileNotFoundError) as exc:
         raise RuntimeError(
-            "Could not verify git working-tree cleanliness — refusing to run "
-            "the full pilot. Re-run from inside the repo, or pass --allow-dirty."
+            f"Could not verify git working-tree cleanliness at {repo_root} — "
+            "refusing to run the full pilot. Pass --allow-dirty to override."
         ) from exc
     if status:
         raise RuntimeError(
-            "Working tree is dirty; refusing to run the full pilot (pre-reg "
-            "honor system requires clean tree).\n"
+            f"Working tree dirty at {repo_root}; refusing to run the full pilot "
+            "(pre-reg honor system requires clean tree).\n"
             f"git status --porcelain:\n{status}\n"
             "Commit/stash changes, or pass --allow-dirty."
         )
@@ -91,19 +74,16 @@ def _load_examples(server_id: str) -> list[Any]:
 
 
 def _replicate_trials(examples: list[Any], n_trials: int) -> list[Any]:
-    """Repeat each example n_trials times so dspy.Evaluate runs multiple trials."""
     return [ex for _ in range(n_trials) for ex in examples]
 
 
 def _build_react(tool_list: list[Any]) -> Any:
-    """Build a `dspy.ReAct` program with the given tools."""
     import dspy
 
     return dspy.ReAct("user_request -> final_answer", tools=tool_list, max_iters=5)
 
 
 def _evaluate(program: Any, examples: list[Any]) -> Any:
-    """Run `dspy.Evaluate` over the examples with `failure_score=0.0`."""
     import dspy
 
     evaluator = dspy.Evaluate(
@@ -116,7 +96,6 @@ def _evaluate(program: Any, examples: list[Any]) -> Any:
 
 
 def _format_result(eval_result: Any, server_id: str, condition: str) -> dict[str, Any]:
-    """Convert `EvaluationResult` to a JSON-serializable summary."""
     if hasattr(eval_result, "results"):
         scores = [float(score) for _, _, score in eval_result.results]
     else:
@@ -133,9 +112,6 @@ def _format_result(eval_result: Any, server_id: str, condition: str) -> dict[str
         "n_trials": len(scores),
         "per_trial_scores": scores,
     }
-
-
-# ---- individual conditions ----
 
 
 def run_baseline(server_id: str, n_trials: int = 5) -> dict[str, Any]:
@@ -297,22 +273,13 @@ def _extract_exemplars(eval_result: Any) -> dict[str, dict[str, Any]]:
             name = step.get("selected_fn")
             args = step.get("args")
             output = step.get("fn_output") or step.get("result")
-            if name and name not in exemplars and args is not None:
+            if name and name not in exemplars and isinstance(args, dict) and args:
                 exemplars[name] = {"input": args, "output": output or ""}
     return exemplars
 
 
-# ---- smoke / shake-out / full ----
-
-
 def run_smoke_adapter() -> int:
-    """R9 gate (~$0): construct GEPA's MCP adapter against Math MCP.
-
-    Verifies (a) the MCP server actually launches and lists tools, and (b)
-    `gepa.adapters.mcp_adapter.MCPAdapter` can be constructed with our config.
-    No LLM calls. If this fails on a fresh setup, run MCP-Bench's
-    `mcp_servers/install.sh` first.
-    """
+    """R9 gate (~$0): verify the MCP server launches, lists tools, and `MCPAdapter` constructs."""
     from gepa.adapters.mcp_adapter import MCPAdapter
 
     spec = _find_spec("math_mcp")
@@ -364,20 +331,21 @@ def run_shake_out(server_id: str = "math_mcp", n_trials: int = 3) -> int:
     return 0
 
 
+_CONDITION_FNS = {
+    "baseline": run_baseline,
+    "miprov2": run_miprov2,
+    "gepa": run_gepa,
+    "axis_ii": run_axis_ii,
+    "axis_iii": run_axis_iii,
+}
+
+
 def _run_all_conditions(server_id: str, n_trials: int) -> dict[str, dict[str, Any]]:
-    """Run all 5 conditions for one server, collecting per-condition results."""
-    fns = {
-        "baseline": run_baseline,
-        "miprov2": run_miprov2,
-        "gepa": run_gepa,
-        "axis_ii": run_axis_ii,
-        "axis_iii": run_axis_iii,
-    }
     results: dict[str, dict[str, Any]] = {}
     for cond in CONDITION_ORDER:
         print(f"  → {cond}")
         try:
-            results[cond] = fns[cond](server_id, n_trials=n_trials)
+            results[cond] = _CONDITION_FNS[cond](server_id, n_trials=n_trials)
         except Exception as exc:
             print(f"  ✗ {cond} failed: {type(exc).__name__}: {exc}")
             results[cond] = {
@@ -400,18 +368,11 @@ def _print_cost_summary() -> None:
         print(f"  by condition: {dict(state.by_condition)}")
 
 
-# ---- aggregation ----
-
-
 def aggregate_and_report(
     results: dict[str, dict[str, dict[str, Any]]],
     mode: str = "full",
 ) -> None:
-    """Compute paired 95% bootstrap CI per (server, condition) vs baseline.
-
-    Writes ``pilot-results/<mode>.json`` with deltas + CIs + cost breakdown.
-    The pilot memo template (Phase 1.5) reads this for narrative population.
-    """
+    """Compute paired 95% bootstrap CI per (server, condition) vs baseline and write JSON."""
     import scipy.stats as stats
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -474,11 +435,7 @@ def aggregate_and_report(
     print(f"\n✓ Wrote {out}")
 
 
-# ---- main ----
-
-
 def main(args: argparse.Namespace) -> int:
-    """CLI entrypoint dispatched from `mcparena.cli.main`."""
     if args.server is not None:
         _validate_server_id(args.server)
 
@@ -502,15 +459,10 @@ def main(args: argparse.Namespace) -> int:
         if conditions_filter == "all":
             server_results = _run_all_conditions(server_id, n_trials=5)
         else:
-            fns = {
-                "baseline": run_baseline,
-                "miprov2": run_miprov2,
-                "gepa": run_gepa,
-                "axis_ii": run_axis_ii,
-                "axis_iii": run_axis_iii,
-            }
             print(f"  → {conditions_filter}")
-            server_results = {conditions_filter: fns[conditions_filter](server_id, n_trials=5)}
+            server_results = {
+                conditions_filter: _CONDITION_FNS[conditions_filter](server_id, n_trials=5)
+            }
         full_results[server_id] = server_results
 
     aggregate_and_report(full_results, mode="full")

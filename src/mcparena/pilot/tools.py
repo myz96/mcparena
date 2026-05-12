@@ -1,9 +1,4 @@
-"""MCP tool helpers — closure pattern, async/sync bridge, axis ii/iii.
-
-The MCP Python SDK is async-only but DSPy's `ReAct.forward` is sync. We bridge
-via `asyncio.run` per tool call — acceptable at pilot scale (3 servers × small
-tasks). Phase 1 will move to a persistent event loop.
-"""
+"""MCP tool helpers — closure pattern, async/sync bridge, axis ii/iii."""
 
 from __future__ import annotations
 
@@ -39,8 +34,8 @@ def discover_tool_specs(params: StdioServerParameters) -> list[dict[str, Any]]:
 def make_tools(params: StdioServerParameters) -> list[Any]:
     """Build `dspy.Tool` objects wrapping each MCP tool via closure.
 
-    Each tool callable runs `asyncio.run(session.call_tool(...))` inside its own
-    short-lived stdio session. Robust at pilot scale, not fast.
+    MCP SDK is async-only but `dspy.ReAct.forward` is sync — we bridge via
+    `asyncio.run` per tool call inside a short-lived stdio session.
     """
     import dspy
 
@@ -54,9 +49,9 @@ def make_tools(params: StdioServerParameters) -> list[Any]:
 
 
 def _make_caller(params: StdioServerParameters, tool_name: str) -> Any:
-    """Build a sync callable that invokes `session.call_tool(tool_name, **kwargs)`.
+    """Build a sync callable invoking `session.call_tool(tool_name, **kwargs)`.
 
-    Captured-by-default-arg pattern avoids late-binding issues in loops.
+    Captured-by-default-arg pattern avoids late-binding bugs in the calling loop.
     """
 
     def _call(**kwargs: Any) -> str:
@@ -87,9 +82,8 @@ def permute_tools(
 ) -> list[list[Any]]:
     """Generate up to N permutations of the tool list for axis (ii).
 
-    Always includes the original order as the first permutation (the "baseline"
-    ordering). For small tool lists (≤max_permutations factorial), exhaustive;
-    otherwise samples randomly with a fixed seed for reproducibility.
+    Always returns the original order first. Exhaustive for small lists;
+    otherwise samples with a fixed seed for reproducibility.
     """
     rng = random.Random(seed)
     original = list(tools)
@@ -108,7 +102,7 @@ def inject_one_shot(
     """Return new `dspy.Tool` list with exemplar usage injected into descriptions.
 
     `exemplar_calls` maps tool name -> {"input": kwargs, "output": text-result}.
-    Tools without an exemplar are returned unchanged.
+    Tools without an exemplar pass through unchanged.
     """
     import dspy
 

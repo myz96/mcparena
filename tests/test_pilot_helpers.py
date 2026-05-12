@@ -1,9 +1,8 @@
 """Unit tests for pilot.py helpers that don't require live MCP / LLM access.
 
-Covers: `_validate_server_id`, `_find_spec`, `_replicate_trials`, `_format_result`,
-`_extract_exemplars`. The heavy `run_*` functions are exercised live by the
-smoke / shake-out / full pipeline; hermetic tests for them would require
-extensive MCP/LLM mocking that would test mocks more than logic.
+The heavy `run_*` functions are exercised live by the smoke / shake-out / full
+pipeline; hermetic tests for them would require so much MCP/LLM mocking they'd
+test the mocks more than the logic.
 """
 
 from __future__ import annotations
@@ -19,7 +18,7 @@ from mcparena.pilot.tasks import PILOT_SERVERS
 
 def test_validate_server_id_accepts_known_servers() -> None:
     for spec in PILOT_SERVERS:
-        pilot_module._validate_server_id(spec.name)  # no raise
+        pilot_module._validate_server_id(spec.name)
 
 
 def test_validate_server_id_rejects_typos() -> None:
@@ -52,7 +51,6 @@ def test_replicate_trials_with_zero_trials_returns_empty() -> None:
 
 
 def test_format_result_extracts_scores_from_evaluation_result() -> None:
-    """Convert dspy.Evaluate's `EvaluationResult` shape to a JSON-serializable dict."""
     fake_eval = SimpleNamespace(
         score=0.75,
         results=[
@@ -81,15 +79,13 @@ def test_format_result_falls_back_to_mean_when_no_aggregate_score() -> None:
 
 
 def test_extract_exemplars_picks_first_success_per_tool() -> None:
-    """`_extract_exemplars` walks `pred.trajectory` of successful trials and
-    captures the FIRST winning tool-call per tool name."""
+    """First successful tool call per tool name wins — later successes don't overwrite."""
 
     def _pred(steps: list[dict[str, Any]]) -> Any:
         return SimpleNamespace(trajectory=steps)
 
     fake_eval = SimpleNamespace(
         results=[
-            # Score 1.0 — successful — extract its tool calls
             (
                 SimpleNamespace(),
                 _pred(
@@ -100,13 +96,11 @@ def test_extract_exemplars_picks_first_success_per_tool() -> None:
                 ),
                 1.0,
             ),
-            # Score 0.0 — failed — skip
             (
                 SimpleNamespace(),
                 _pred([{"selected_fn": "mean", "args": {"x": [99]}, "fn_output": "99"}]),
                 0.0,
             ),
-            # Score 1.0 again — but `mean` already captured; `stddev` is new
             (
                 SimpleNamespace(),
                 _pred(
@@ -121,7 +115,6 @@ def test_extract_exemplars_picks_first_success_per_tool() -> None:
     )
     exemplars = pilot_module._extract_exemplars(fake_eval)
     assert set(exemplars.keys()) == {"mean", "sum", "stddev"}
-    # First success won — `mean` exemplar is from trial 1, not trial 3
     assert exemplars["mean"]["input"] == {"x": [1, 2, 3]}
     assert exemplars["mean"]["output"] == "2.0"
 

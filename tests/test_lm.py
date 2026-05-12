@@ -46,6 +46,7 @@ def test_default_uses_openrouter_dated_slug(
     assert call["model"] == "openrouter/anthropic/claude-sonnet-4"
     assert call["api_key"] == "sk-or-test"
     assert call["api_base"] == "https://openrouter.ai/api/v1"
+    assert call["cache"] is False  # P0 fix — trials must NOT be cached
 
 
 def test_openrouter_prefix_reads_openrouter_key(

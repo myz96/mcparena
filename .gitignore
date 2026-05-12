@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# uv
+.uv-cache/
+
+# Testing / linting caches
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Project-specific
+pilot-results/
+pilot-sandbox/
+.env
+.env.local
+
+# Vendored third-party (gitignored to keep repo small; clone on demand)
+third_party/*/
+
+# Raw planning transcripts — see Docs hygiene in plan v5.1
+docs/_drafts/

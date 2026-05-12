@@ -43,7 +43,7 @@ def test_default_uses_openrouter_dated_slug(
     lm_module.get_lm()
     assert len(spy_dspy_lm) == 1
     call = spy_dspy_lm[0]
-    assert call["model"] == "openrouter/anthropic/claude-sonnet-4-20250514"
+    assert call["model"] == "openrouter/anthropic/claude-sonnet-4"
     assert call["api_key"] == "sk-or-test"
     assert call["api_base"] == "https://openrouter.ai/api/v1"
 
@@ -53,7 +53,7 @@ def test_openrouter_prefix_reads_openrouter_key(
 ) -> None:
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-1")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-1")
-    lm_module.get_lm("openrouter/anthropic/claude-sonnet-4-20250514")
+    lm_module.get_lm("openrouter/anthropic/claude-sonnet-4")
     assert spy_dspy_lm[0]["api_key"] == "sk-or-1"
 
 

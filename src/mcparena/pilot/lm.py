@@ -20,10 +20,11 @@ from __future__ import annotations
 import os
 from typing import Any, Literal
 
-# Dated OpenRouter slug for Claude Sonnet 4 — the version MCP-Bench published
-# baselines against (claude-sonnet-4, score 0.681). Pinning to the dated form
-# avoids surprises if OpenRouter aliases drift.
-DEFAULT_PILOT_MODEL = "openrouter/anthropic/claude-sonnet-4-20250514"
+# OpenRouter exposes Anthropic models via semver aliases (anthropic/claude-sonnet-4,
+# /4.5, /4.6) — not Anthropic's internal dated slugs. We pin to "claude-sonnet-4"
+# because that's exactly what MCP-Bench tested (score 0.681 on their leaderboard).
+# Verified live via openrouter.ai/api/v1/models on 2026-05-13.
+DEFAULT_PILOT_MODEL = "openrouter/anthropic/claude-sonnet-4"
 OPENROUTER_API_BASE = "https://openrouter.ai/api/v1"
 
 Role = Literal["program", "reflection"]

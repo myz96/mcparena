@@ -1,0 +1,93 @@
+[project]
+name = "mcparena"
+version = "0.0.1"
+description = "Optimization layer over MCP benchmarks via DSPy GEPA + MIPROv2"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Michael Zhao", email = "michael.yj.zhao@gmail.com" }
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
+dependencies = [
+    "mcp~=1.12.4",
+    # NOTE: dspy 3.1.3 transitively pins gepa==0.0.26. We do NOT explicitly pin
+    # gepa here — that would conflict. Investigation needed in Unit 3 whether
+    # gepa 0.0.26 contains the MCP adapter (Unit 3 spike result determines
+    # whether we need a newer dspy pre-release or fall back to MIPROv2 + axes
+    # ii/iii only).
+    "dspy~=3.1.3",
+    "litellm>=1.50,<2",
+    "numpy~=2.0",
+    "scipy~=1.13",
+    "pydantic~=2.7",
+]
+
+[project.scripts]
+mcparena = "mcparena.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/myz96/mcparena"
+Repository = "https://github.com/myz96/mcparena"
+
+[dependency-groups]
+dev = [
+    "pytest~=8.0",
+    "mypy~=1.11",
+    "ruff~=0.5",
+    "pre-commit~=3.7",
+    "hypothesis~=6.100",
+    "syrupy~=4.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# App framing — commits lockfile for pilot reproducibility.
+# Internal mcparena.pilot namespace remains importable for testing/scripting,
+# but the project is an application (ships a CLI), not a standalone library.
+[tool.uv]
+package = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mcparena"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src"]
+exclude = ["docs/", "third_party/", "pilot-results/", "pilot-sandbox/"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",  # pycodestyle / pyflakes
+    "I",             # isort
+    "B",             # bugbear
+    "UP",            # pyupgrade
+]
+ignore = [
+    "E501",  # line length handled by formatter
+]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src/mcparena"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "live: tests requiring live API keys (opt-in via -m live)",
+]

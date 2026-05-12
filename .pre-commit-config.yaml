@@ -1,0 +1,24 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.7
+    hooks:
+      - id: ruff-format
+      - id: ruff
+        args: [--fix]
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: uv run mypy
+        language: system
+        files: ^src/.*\.py$
+        pass_filenames: false
+        args: [src/mcparena]
+
+      - id: docs-cleanup-warning
+        name: docs-cleanup-warning (warn on raw AI-process markers)
+        entry: python3 scripts/check_docs_cleanup.py
+        language: system
+        files: ^docs/.*\.md$
+        pass_filenames: true

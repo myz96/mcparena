@@ -20,11 +20,15 @@ from __future__ import annotations
 import os
 from typing import Any, Literal
 
-# OpenRouter exposes Anthropic models via semver aliases (anthropic/claude-sonnet-4,
-# /4.5, /4.6) — not Anthropic's internal dated slugs. We pin to "claude-sonnet-4"
-# because that's exactly what MCP-Bench tested (score 0.681 on their leaderboard).
-# Verified live via openrouter.ai/api/v1/models on 2026-05-13.
-DEFAULT_PILOT_MODEL = "openrouter/anthropic/claude-sonnet-4"
+# Default model = exactly what MCP-Bench tested ("claude-sonnet-4", score 0.681).
+# OpenRouter uses semver aliases (anthropic/claude-sonnet-4 / 4.5 / 4.6), not
+# Anthropic's internal dated slugs. Verified live 2026-05-13.
+#
+# Override at runtime via env var MCPARENA_PILOT_MODEL to dry-run the pipeline
+# on a cheap model first (e.g. openrouter/google/gemini-2.0-flash-lite-001 is
+# ~50x cheaper than Sonnet 4 and useful for flushing pipeline bugs before
+# committing to the real pre-registered run).
+DEFAULT_PILOT_MODEL = os.environ.get("MCPARENA_PILOT_MODEL", "openrouter/anthropic/claude-sonnet-4")
 OPENROUTER_API_BASE = "https://openrouter.ai/api/v1"
 
 Role = Literal["program", "reflection"]

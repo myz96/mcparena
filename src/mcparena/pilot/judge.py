@@ -64,10 +64,15 @@ def judge_metric_evaluate(example: Any, pred: Any, trace: Any = None) -> float:
 def judge_metric_gepa(
     gold: Any,
     pred: Any,
-    trace: Any,
-    pred_name: Any,
-    pred_trace: Any,
+    trace: Any = None,
+    pred_name: Any = None,
+    pred_trace: Any = None,
 ) -> Any:
-    """5-arg metric for `dspy.GEPA` — returns `dspy.Prediction(score, feedback)`."""
+    """Metric for `dspy.GEPA` — returns `dspy.Prediction(score, feedback)`.
+
+    Trailing args default to None because DSPy calls this in two contexts:
+    (a) reflection feedback (5-arg), (b) plain evaluation (3-arg). Without
+    defaults, the 3-arg path raises TypeError and every trial scores 0.0.
+    """
     score, reason = _judge_core(gold, pred)
     return dspy.Prediction(score=score, feedback=reason)

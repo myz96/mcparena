@@ -161,8 +161,17 @@ def run_miprov2(server_id: str, n_trials: int = 5) -> dict[str, Any]:
     return _format_result(result, server_id, "miprov2")
 
 
-def run_gepa(server_id: str, n_trials: int = 5) -> dict[str, Any]:
-    """`dspy.GEPA(auto="light")` with same-model reflection LM."""
+def run_gepa(
+    server_id: str,
+    n_trials: int = 5,
+    max_full_evals: int | None = None,
+) -> dict[str, Any]:
+    """`dspy.GEPA` with same-model reflection LM.
+
+    Pass ``max_full_evals=1`` for the smoke-budget tier — `auto="light"` on
+    MCP-Bench multi-step tasks burned ~$30+ in one pilot attempt (742 rollouts,
+    each trajectory ~12 tool calls). The bounded variant is for cost calibration.
+    """
     _validate_server_id(server_id)
     spec = _find_spec(server_id)
 
@@ -176,12 +185,16 @@ def run_gepa(server_id: str, n_trials: int = 5) -> dict[str, Any]:
     program = _build_react(tool_list)
     examples = _load_examples(server_id)
 
-    optimizer = dspy.GEPA(
-        metric=judge_metric_gepa,
-        reflection_lm=reflection_lm,
-        auto="light",
-        track_stats=True,
-    )
+    gepa_kwargs: dict[str, Any] = {
+        "metric": judge_metric_gepa,
+        "reflection_lm": reflection_lm,
+        "track_stats": True,
+    }
+    if max_full_evals is not None:
+        gepa_kwargs["max_full_evals"] = max_full_evals
+    else:
+        gepa_kwargs["auto"] = "light"
+    optimizer = dspy.GEPA(**gepa_kwargs)
     optimized = optimizer.compile(program, trainset=examples, valset=examples)
 
     trials = _replicate_trials(examples, n_trials)
@@ -310,11 +323,15 @@ def run_smoke_adapter() -> int:
 
 
 def run_smoke_budget(server_id: str = "math_mcp", n_trials: int = 2) -> int:
-    """Smoke (~$8): 1 server × all tasks × n_trials trials × 5 conditions."""
-    _validate_server_id(server_id)
-    print(f"smoke-budget: {server_id} × {n_trials} trials × 5 conditions")
+    """Smoke (~$8): 1 server × all tasks × n_trials × 5 conditions.
 
-    results = _run_all_conditions(server_id, n_trials=n_trials)
+    Uses ``max_full_evals=1`` for GEPA (smoke-only constraint) so the
+    optimizer's rollout count is bounded; full-pilot uses ``auto="light"``.
+    """
+    _validate_server_id(server_id)
+    print(f"smoke-budget: {server_id} × {n_trials} trials × 5 conditions", flush=True)
+
+    results = _run_all_conditions(server_id, n_trials=n_trials, gepa_max_full_evals=1)
     aggregate_and_report({server_id: results}, mode="smoke-budget")
     _print_cost_summary()
     return 0
@@ -340,14 +357,23 @@ _CONDITION_FNS = {
 }
 
 
-def _run_all_conditions(server_id: str, n_trials: int) -> dict[str, dict[str, Any]]:
+def _run_all_conditions(
+    server_id: str,
+    n_trials: int,
+    gepa_max_full_evals: int | None = None,
+) -> dict[str, dict[str, Any]]:
     results: dict[str, dict[str, Any]] = {}
     for cond in CONDITION_ORDER:
-        print(f"  → {cond}")
+        print(f"  → {cond}", flush=True)
         try:
-            results[cond] = _CONDITION_FNS[cond](server_id, n_trials=n_trials)
+            if cond == "gepa" and gepa_max_full_evals is not None:
+                results[cond] = run_gepa(
+                    server_id, n_trials=n_trials, max_full_evals=gepa_max_full_evals
+                )
+            else:
+                results[cond] = _CONDITION_FNS[cond](server_id, n_trials=n_trials)
         except Exception as exc:
-            print(f"  ✗ {cond} failed: {type(exc).__name__}: {exc}")
+            print(f"  ✗ {cond} failed: {type(exc).__name__}: {exc}", flush=True)
             results[cond] = {
                 "server_id": server_id,
                 "condition": cond,

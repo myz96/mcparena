@@ -5,6 +5,12 @@ from __future__ import annotations
 import argparse
 import sys
 
+# Long-running pilot prints status per-condition; without line buffering, those
+# updates queue up in a 4-8 KB stdout buffer and the user sees nothing until the
+# command exits ~20+ minutes later.
+sys.stdout.reconfigure(line_buffering=True)  # type: ignore[union-attr]
+sys.stderr.reconfigure(line_buffering=True)  # type: ignore[union-attr]
+
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(

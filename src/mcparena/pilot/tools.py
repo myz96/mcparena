@@ -186,17 +186,28 @@ def permute_tools(
 ) -> list[list[Any]]:
     """Generate up to N permutations of the tool list for axis (ii).
 
-    Always returns the original order first. Exhaustive for small lists;
-    otherwise samples with a fixed seed for reproducibility.
+    Always returns the original order first, then random shuffles to reach N
+    distinct permutations. Pure rejection sampling: do NOT materialize the
+    full permutation set — math_mcp ships 13 tools (13! = 6.2 billion).
     """
+    import math
+
     rng = random.Random(seed)
     original = list(tools)
-    all_perms = list(itertools.permutations(original))
-    if len(all_perms) <= max_permutations:
-        return [list(p) for p in all_perms]
-    others = [p for p in all_perms if list(p) != original]
-    sampled = rng.sample(others, max_permutations - 1)
-    return [original] + [list(p) for p in sampled]
+    n = len(original)
+
+    if math.factorial(n) <= max_permutations:
+        return [list(p) for p in itertools.permutations(original)]
+
+    # For large n, dspy.Tool isn't hashable so we can't dedupe a seen-set.
+    # Collision probability for k=4 random shuffles of n>=5 items is ~k²/2n!,
+    # which is negligible (e.g. 4²/2·13! = 1.3e-9). Skip dedupe.
+    perms: list[list[Any]] = [original]
+    for _ in range(max_permutations - 1):
+        shuffled = original[:]
+        rng.shuffle(shuffled)
+        perms.append(shuffled)
+    return perms
 
 
 def inject_one_shot(

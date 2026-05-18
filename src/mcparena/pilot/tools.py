@@ -165,14 +165,15 @@ def make_tools(session: PersistentMCPSession) -> list[Any]:
 def _make_caller(session: PersistentMCPSession, tool_name: str) -> Any:
     """Build a sync callable that delegates to `session.call_tool(tool_name, **kwargs)`.
 
-    Default-arg capture pattern avoids late-binding bugs in the calling loop
-    (each closure binds its own `tool_name` value at definition time).
+    The closure captures `session` and `tool_name` from the enclosing function
+    scope — fresh values per `_make_caller` call (no late-binding risk).
+    Default-arg capture was tried but `dspy.Tool` runs pydantic schema
+    introspection on the signature and chokes on the `PersistentMCPSession`
+    type annotation (PydanticSchemaGenerationError).
     """
 
-    def _call(
-        _session: PersistentMCPSession = session, _name: str = tool_name, **kwargs: Any
-    ) -> str:
-        return _session.call_tool(_name, **kwargs)
+    def _call(**kwargs: Any) -> str:
+        return session.call_tool(tool_name, **kwargs)
 
     _call.__name__ = tool_name
     return _call

@@ -123,13 +123,13 @@ def run_baseline(server_id: str, n_trials: int = 5) -> dict[str, Any]:
 
     program_lm = get_lm()
     dspy.configure(lm=program_lm)
-
-    tool_list = tools.make_tools(spec.to_stdio_params())
-    program = _build_react(tool_list)
-
     examples = _load_examples(server_id)
-    trials = _replicate_trials(examples, n_trials)
-    result = _evaluate(program, trials)
+
+    with tools.persistent_session(spec.to_stdio_params()) as session:
+        tool_list = tools.make_tools(session)
+        program = _build_react(tool_list)
+        trials = _replicate_trials(examples, n_trials)
+        result = _evaluate(program, trials)
 
     costs.absorb_lm_history(program_lm, role="program", condition="baseline")
     costs.check_cost_caps()
@@ -145,16 +145,15 @@ def run_miprov2(server_id: str, n_trials: int = 5) -> dict[str, Any]:
 
     program_lm = get_lm()
     dspy.configure(lm=program_lm)
-
-    tool_list = tools.make_tools(spec.to_stdio_params())
-    program = _build_react(tool_list)
     examples = _load_examples(server_id)
 
-    optimizer = dspy.MIPROv2(metric=judge_metric_evaluate, auto="light", num_threads=8)
-    optimized = optimizer.compile(program, trainset=examples)
-
-    trials = _replicate_trials(examples, n_trials)
-    result = _evaluate(optimized, trials)
+    with tools.persistent_session(spec.to_stdio_params()) as session:
+        tool_list = tools.make_tools(session)
+        program = _build_react(tool_list)
+        optimizer = dspy.MIPROv2(metric=judge_metric_evaluate, auto="light", num_threads=8)
+        optimized = optimizer.compile(program, trainset=examples)
+        trials = _replicate_trials(examples, n_trials)
+        result = _evaluate(optimized, trials)
 
     costs.absorb_lm_history(program_lm, role="program", condition="miprov2")
     costs.check_cost_caps()
@@ -180,9 +179,6 @@ def run_gepa(
     program_lm = get_lm()
     reflection_lm = get_lm(role="reflection")
     dspy.configure(lm=program_lm)
-
-    tool_list = tools.make_tools(spec.to_stdio_params())
-    program = _build_react(tool_list)
     examples = _load_examples(server_id)
 
     gepa_kwargs: dict[str, Any] = {
@@ -194,11 +190,14 @@ def run_gepa(
         gepa_kwargs["max_full_evals"] = max_full_evals
     else:
         gepa_kwargs["auto"] = "light"
-    optimizer = dspy.GEPA(**gepa_kwargs)
-    optimized = optimizer.compile(program, trainset=examples, valset=examples)
 
-    trials = _replicate_trials(examples, n_trials)
-    result = _evaluate(optimized, trials)
+    with tools.persistent_session(spec.to_stdio_params()) as session:
+        tool_list = tools.make_tools(session)
+        program = _build_react(tool_list)
+        optimizer = dspy.GEPA(**gepa_kwargs)
+        optimized = optimizer.compile(program, trainset=examples, valset=examples)
+        trials = _replicate_trials(examples, n_trials)
+        result = _evaluate(optimized, trials)
 
     costs.absorb_lm_history(reflection_lm, role="reflection", condition="gepa")
     costs.absorb_lm_history(program_lm, role="program", condition="gepa")
@@ -215,23 +214,23 @@ def run_axis_ii(server_id: str, n_trials: int = 5) -> dict[str, Any]:
 
     program_lm = get_lm()
     dspy.configure(lm=program_lm)
-
-    tool_list = tools.make_tools(spec.to_stdio_params())
     examples = _load_examples(server_id)
 
-    perms = tools.permute_tools(tool_list, max_permutations=4)
     per_perm_scores: list[float] = []
     best_result = None
     best_score = -1.0
-    for perm in perms:
-        program = _build_react(perm)
-        trials = _replicate_trials(examples, n_trials)
-        result = _evaluate(program, trials)
-        score = float(getattr(result, "score", 0.0) or 0.0)
-        per_perm_scores.append(score)
-        if score > best_score:
-            best_score = score
-            best_result = result
+    with tools.persistent_session(spec.to_stdio_params()) as session:
+        tool_list = tools.make_tools(session)
+        perms = tools.permute_tools(tool_list, max_permutations=4)
+        for perm in perms:
+            program = _build_react(perm)
+            trials = _replicate_trials(examples, n_trials)
+            result = _evaluate(program, trials)
+            score = float(getattr(result, "score", 0.0) or 0.0)
+            per_perm_scores.append(score)
+            if score > best_score:
+                best_score = score
+                best_result = result
 
     costs.absorb_lm_history(program_lm, role="program", condition="axis_ii")
     costs.check_cost_caps()
@@ -249,18 +248,18 @@ def run_axis_iii(server_id: str, n_trials: int = 5) -> dict[str, Any]:
 
     program_lm = get_lm()
     dspy.configure(lm=program_lm)
-
-    tool_list = tools.make_tools(spec.to_stdio_params())
     examples = _load_examples(server_id)
 
-    baseline_program = _build_react(tool_list)
-    exemplar_result = _evaluate(baseline_program, examples)
-    exemplars = _extract_exemplars(exemplar_result)
+    with tools.persistent_session(spec.to_stdio_params()) as session:
+        tool_list = tools.make_tools(session)
+        baseline_program = _build_react(tool_list)
+        exemplar_result = _evaluate(baseline_program, examples)
+        exemplars = _extract_exemplars(exemplar_result)
 
-    injected_tools = tools.inject_one_shot(tool_list, exemplars)
-    injected_program = _build_react(injected_tools)
-    trials = _replicate_trials(examples, n_trials)
-    result = _evaluate(injected_program, trials)
+        injected_tools = tools.inject_one_shot(tool_list, exemplars)
+        injected_program = _build_react(injected_tools)
+        trials = _replicate_trials(examples, n_trials)
+        result = _evaluate(injected_program, trials)
 
     costs.absorb_lm_history(program_lm, role="program", condition="axis_iii")
     costs.check_cost_caps()

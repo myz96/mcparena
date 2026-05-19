@@ -80,7 +80,12 @@ def _replicate_trials(examples: list[Any], n_trials: int) -> list[Any]:
 def _build_react(tool_list: list[Any]) -> Any:
     import dspy
 
-    return dspy.ReAct("user_request -> final_answer", tools=tool_list, max_iters=5)
+    # max_iters=20: MCP-Bench math tasks have 13+ sequential explicit-tool
+    # steps (e.g. "calculate X using Math MCP:round"). At max_iters=15
+    # Qwen3-235b finished the math but skipped the FINAL round/ceiling tool
+    # calls and judge correctly flagged "missing tool calls". 20 gives
+    # breathing room for retries.
+    return dspy.ReAct("user_request -> final_answer", tools=tool_list, max_iters=20)
 
 
 def _evaluate(program: Any, examples: list[Any]) -> Any:

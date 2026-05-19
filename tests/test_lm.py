@@ -43,7 +43,7 @@ def test_default_uses_openrouter_dated_slug(
     lm_module.get_lm()
     assert len(spy_dspy_lm) == 1
     call = spy_dspy_lm[0]
-    assert call["model"] == "openrouter/anthropic/claude-sonnet-4"
+    assert call["model"] == "openrouter/qwen/qwen3-235b-a22b-2507"
     assert call["api_key"] == "sk-or-test"
     assert call["api_base"] == "https://openrouter.ai/api/v1"
     assert call["cache"] is False  # P0 fix — trials must NOT be cached

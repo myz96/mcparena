@@ -32,7 +32,7 @@ with `n_resamples=1000`, `confidence_level=0.95`, `paired=True`,
 |---|---|---|
 | 1 | `baseline` | Vanilla `dspy.ReAct` against MCP server, no optimization. |
 | 2 | `miprov2` | `dspy.MIPROv2(auto="light")` over program signature. |
-| 3 | `gepa` | `dspy.GEPA(auto="light")` via `gepa.adapters.mcp_adapter.MCPAdapter`. Reflection LM = same model (Claude Sonnet 4 via OpenRouter), `temperature=1.0`, `max_tokens=16000`. |
+| 3 | `gepa` | `dspy.GEPA(auto="light")`. Reflection LM = same model (Qwen3-235b-a22b-2507 via OpenRouter), `temperature=1.0`, `max_tokens=16000`. |
 | 4 | `axis_ii` | Brute-force permutation search over the tool list (≤4 permutations per server). No optimizer; measures whether tool-list ordering alone changes outcomes. |
 | 5 | `axis_iii` | Hand-inject a 1-shot example into each tool's description string. Re-evaluate. |
 
@@ -93,17 +93,21 @@ tasks per server). Lower statistical power than originally planned for; the
 pilot is a feasibility / mechanism-validation spike, not a powered effect-size
 study. Phase 1 will augment with multi-server tasks and/or MCP-Universe.
 
-## Cost discipline
+## Cost discipline (v2 amendment, 2026-05-19)
 
-| Tier | Scope | Estimated cost |
+Cost estimates revised based on a Gemini Flash Lite dry-run that surfaced
+~50x higher per-condition cost than originally projected (MCP-Bench task
+trajectories are ~30 tool calls each).
+
+| Tier | Scope | Estimated cost on Qwen3-235b |
 |---|---|---|
-| `--smoke-adapter` | 1 task, 1 trial, GEPA adapter load test | ~$1 |
-| `--smoke-budget` | 1 server, 1 task, 2 trials, all 5 conditions | ~$8 |
-| `--shake-out` | 1 server (Math MCP default), both tasks, 3 trials, all 5 conditions | ~$30 |
-| Full pilot | 3 servers, all tasks, 5 trials, all 5 conditions | ~$60-80 |
+| `--smoke-adapter` | GEPA MCP adapter load test, no LLM calls | ~$0 |
+| `--smoke-budget` | 1 server × 1 task × 2 trials × 5 conditions | ~$3 |
+| `--shake-out` | 1 server × all tasks × 3 trials × 5 conditions | ~$5 |
+| Full pilot | 3 servers × all tasks × 5 trials × 5 conditions | ~$25-30 |
 
-Hard cap: **$300 cumulative**. Runner halts before exceeding. $50 reserved
-for memo + retries; total wallet budget $350.
+Hard cap: **$300 cumulative** (unchanged from v1; now ~10x headroom).
+$50 reserved for memo + retries.
 
 ## Stopping rule
 
@@ -112,15 +116,19 @@ cost cap.
 
 ## Trial determinism
 
-- Program / judge LM: `openrouter/anthropic/claude-sonnet-4`,
-  `temperature=0.7`, `max_tokens=8192`
-- Reflection LM (GEPA only): `openrouter/anthropic/claude-sonnet-4`,
-  `temperature=1.0`, `max_tokens=16000`
-- API routing: OpenRouter (single `OPENROUTER_API_KEY` for all providers).
-  Matches MCP-Bench's published setup; routes to Anthropic for Claude calls.
-- Model choice rationale: MCP-Bench's published baseline for Anthropic is
-  "claude-sonnet-4" (Sonnet 4.0, score 0.681). Using the same model gives
-  apples-to-apples comparison.
+- Program / judge LM: `openrouter/qwen/qwen3-235b-a22b-2507`,
+  `temperature=0.7`, `max_tokens=8192`, `cache=False`
+- Reflection LM (GEPA only): `openrouter/qwen/qwen3-235b-a22b-2507`,
+  `temperature=1.0`, `max_tokens=16000`, `cache=False`
+- API routing: OpenRouter (single `OPENROUTER_API_KEY`).
+- **Model choice rationale (v2 amendment, 2026-05-19):** initially planned
+  for `claude-sonnet-4` (MCP-Bench rank 5, score 0.681), but Gemini Flash
+  Lite dry-run revealed projected Sonnet pilot cost of ~\$1,679 — over
+  5x the \$300 hard cap. Switched to `qwen3-235b-a22b-2507` (MCP-Bench
+  rank 6, score 0.678 — essentially tied within margin of error). Output
+  tokens are ~150x cheaper (\$0.10/M vs \$15/M), bringing full pilot cost
+  to ~\$25-30 while preserving apples-to-apples comparison with a
+  published MCP-Bench baseline.
 - No seed pinning across trials. Variance is intentional and integrated by
   the bootstrap CI.
 

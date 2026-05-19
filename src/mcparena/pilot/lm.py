@@ -20,15 +20,13 @@ from __future__ import annotations
 import os
 from typing import Any, Literal
 
-# Default model = exactly what MCP-Bench tested ("claude-sonnet-4", score 0.681).
-# OpenRouter uses semver aliases (anthropic/claude-sonnet-4 / 4.5 / 4.6), not
-# Anthropic's internal dated slugs. Verified live 2026-05-13.
-#
-# Override at runtime via env var MCPARENA_PILOT_MODEL to dry-run the pipeline
-# on a cheap model first (e.g. openrouter/google/gemini-2.0-flash-lite-001 is
-# ~50x cheaper than Sonnet 4 and useful for flushing pipeline bugs before
-# committing to the real pre-registered run).
-DEFAULT_PILOT_MODEL = os.environ.get("MCPARENA_PILOT_MODEL", "openrouter/anthropic/claude-sonnet-4")
+# Default = Qwen3-235b-a22b-2507 (MCP-Bench rank 6, score 0.678, essentially
+# tied with claude-sonnet-4 at 0.681 — within margin of error). Pre-reg
+# amendment v2 (2026-05-19): switched from claude-sonnet-4 because dry-run
+# revealed full pilot would cost ~$1,679 on Sonnet vs ~$25 on Qwen3-235b
+# (~50-150x cheaper on output tokens, both routed via OpenRouter).
+# Override at runtime via env var MCPARENA_PILOT_MODEL.
+DEFAULT_PILOT_MODEL = os.environ.get("MCPARENA_PILOT_MODEL", "openrouter/qwen/qwen3-235b-a22b-2507")
 OPENROUTER_API_BASE = "https://openrouter.ai/api/v1"
 
 Role = Literal["program", "reflection"]

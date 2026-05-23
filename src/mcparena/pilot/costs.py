@@ -5,9 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-# Pricing for `anthropic/claude-sonnet-4` via OpenRouter, effective 2026-05-13.
-SONNET_4_INPUT_USD_PER_M = 3.0
-SONNET_4_OUTPUT_USD_PER_M = 15.0
+# Pricing for the pre-reg-pinned model `openrouter/qwen/qwen3-235b-a22b-2507`,
+# effective 2026-05-19 amendment. Sonnet-4 rates (left for reference) were
+# $3/$15 per M; switching to Qwen3 brought projected pilot cost from ~$1,679
+# to ~$25 and is the reason the pilot fits inside the $300 hard cap at all.
+QWEN3_INPUT_USD_PER_M = 0.071
+QWEN3_OUTPUT_USD_PER_M = 0.10
 HARD_CAP_USD = 300.0
 REFLECTION_SHARE_GATE = 0.60
 
@@ -23,8 +26,8 @@ class CostState:
 
     def add(self, prompt_tokens: int, completion_tokens: int, role: Role, condition: str) -> float:
         cost = (
-            prompt_tokens * SONNET_4_INPUT_USD_PER_M / 1_000_000
-            + completion_tokens * SONNET_4_OUTPUT_USD_PER_M / 1_000_000
+            prompt_tokens * QWEN3_INPUT_USD_PER_M / 1_000_000
+            + completion_tokens * QWEN3_OUTPUT_USD_PER_M / 1_000_000
         )
         self.total_usd += cost
         if role == "reflection":

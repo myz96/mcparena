@@ -30,10 +30,10 @@ def test_initial_state_is_zero() -> None:
 
 def test_add_program_cost_only() -> None:
     state = costs.get_state()
-    # 1M input × $3 + 1M output × $15 = $18
+    # 1M input × $0.071 + 1M output × $0.10 = $0.171
     cost = state.add(1_000_000, 1_000_000, role="program", condition="baseline")
-    assert cost == pytest.approx(18.0)
-    assert state.program_usd == pytest.approx(18.0)
+    assert cost == pytest.approx(0.171)
+    assert state.program_usd == pytest.approx(0.171)
     assert state.reflection_usd == 0.0
     assert state.reflection_share == 0.0
 
@@ -42,9 +42,9 @@ def test_add_reflection_cost_attributes_correctly() -> None:
     state = costs.get_state()
     state.add(100_000, 100_000, role="program", condition="gepa")
     state.add(100_000, 100_000, role="reflection", condition="gepa")
-    assert state.program_usd == pytest.approx(1.8)
-    assert state.reflection_usd == pytest.approx(1.8)
-    assert state.total_usd == pytest.approx(3.6)
+    assert state.program_usd == pytest.approx(0.0171)
+    assert state.reflection_usd == pytest.approx(0.0171)
+    assert state.total_usd == pytest.approx(0.0342)
     assert state.reflection_share == pytest.approx(0.5)
 
 
@@ -53,8 +53,8 @@ def test_by_condition_breakdown() -> None:
     state.add(1_000_000, 0, role="program", condition="baseline")
     state.add(1_000_000, 0, role="program", condition="miprov2")
     state.add(1_000_000, 0, role="program", condition="baseline")
-    assert state.by_condition["baseline"] == pytest.approx(6.0)
-    assert state.by_condition["miprov2"] == pytest.approx(3.0)
+    assert state.by_condition["baseline"] == pytest.approx(0.142)
+    assert state.by_condition["miprov2"] == pytest.approx(0.071)
 
 
 def test_check_caps_under_limit_passes() -> None:
@@ -63,8 +63,8 @@ def test_check_caps_under_limit_passes() -> None:
 
 
 def test_check_caps_raises_over_hard_cap() -> None:
-    # 100M output × $15/M = $1500 > $300 cap
-    costs.get_state().add(0, 100_000_000, role="program", condition="baseline")
+    # 4B output × $0.10/M = $400 > $300 cap
+    costs.get_state().add(0, 4_000_000_000, role="program", condition="baseline")
     with pytest.raises(RuntimeError, match="Cost cap exceeded"):
         costs.check_cost_caps()
 
@@ -86,8 +86,8 @@ def test_absorb_lm_history_drains_and_sums() -> None:
         ]
     )
     delta = costs.absorb_lm_history(fake_lm, role="program", condition="baseline")
-    # 3000 × $3/M + 1500 × $15/M = 0.009 + 0.0225 = 0.0315
-    assert delta == pytest.approx(0.0315)
+    # 3000 × $0.071/M + 1500 × $0.10/M = 0.000213 + 0.00015 = 0.000363
+    assert delta == pytest.approx(0.000363)
     assert fake_lm.history == []
     delta2 = costs.absorb_lm_history(fake_lm, role="program", condition="baseline")
     assert delta2 == 0.0
@@ -106,7 +106,8 @@ def test_absorb_lm_history_handles_nested_usage_shapes() -> None:
         ]
     )
     delta = costs.absorb_lm_history(fake_lm, role="program", condition="baseline")
-    assert delta == pytest.approx(0.018)
+    # 1000 × $0.071/M + 1000 × $0.10/M = 0.000071 + 0.0001 = 0.000171
+    assert delta == pytest.approx(0.000171)
 
 
 def test_reset_zeros_state_across_invocations() -> None:

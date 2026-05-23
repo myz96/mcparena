@@ -335,7 +335,9 @@ def run_smoke_budget(server_id: str = "math_mcp", n_trials: int = 2) -> int:
     _validate_server_id(server_id)
     print(f"smoke-budget: {server_id} × {n_trials} trials × 5 conditions", flush=True)
 
-    results = _run_all_conditions(server_id, n_trials=n_trials, gepa_max_full_evals=1)
+    results = _run_all_conditions(
+        server_id, n_trials=n_trials, gepa_max_full_evals=1, mode="smoke-budget"
+    )
     aggregate_and_report({server_id: results}, mode="smoke-budget")
     _print_cost_summary()
     return 0
@@ -346,7 +348,7 @@ def run_shake_out(server_id: str = "math_mcp", n_trials: int = 3) -> int:
     _validate_server_id(server_id)
     print(f"shake-out: {server_id} × {n_trials} trials × 5 conditions")
 
-    results = _run_all_conditions(server_id, n_trials=n_trials)
+    results = _run_all_conditions(server_id, n_trials=n_trials, mode="shake-out")
     aggregate_and_report({server_id: results}, mode="shake-out")
     _print_cost_summary()
     return 0
@@ -361,13 +363,55 @@ _CONDITION_FNS = {
 }
 
 
+def _load_checkpoint(mode: str) -> dict[str, dict[str, Any]]:
+    """Return raw_results from a prior partial run, or empty dict."""
+    path = RESULTS_DIR / f"{mode}.json"
+    if not path.exists():
+        return {}
+    try:
+        raw = json.loads(path.read_text()).get("raw_results", {})
+    except (json.JSONDecodeError, OSError):
+        return {}
+    assert isinstance(raw, dict)
+    return raw
+
+
+def _condition_completed(result: dict[str, Any] | None) -> bool:
+    """A condition is complete iff it has trial scores and no error."""
+    if not result:
+        return False
+    return "error" not in result and result.get("n_trials", 0) > 0
+
+
 def _run_all_conditions(
     server_id: str,
     n_trials: int,
     gepa_max_full_evals: int | None = None,
+    mode: str | None = None,
+    accumulator: dict[str, dict[str, dict[str, Any]]] | None = None,
 ) -> dict[str, dict[str, Any]]:
-    results: dict[str, dict[str, Any]] = {}
+    """Run all 5 conditions for one server.
+
+    If ``mode`` is set, persist to ``pilot-results/{mode}.json`` after each
+    condition so a mid-run kill (process crash, OpenRouter rate limit,
+    Ctrl-C) doesn't lose completed conditions. On re-launch, completed
+    conditions are skipped (resumed from checkpoint).
+
+    ``accumulator`` is the cross-server results dict used by the full pilot
+    so per-condition persists capture all servers' state, not just the
+    current one.
+    """
+    if accumulator is None:
+        accumulator = {}
+
+    if mode and server_id not in accumulator:
+        accumulator[server_id] = _load_checkpoint(mode).get(server_id, {})
+    results: dict[str, dict[str, Any]] = dict(accumulator.get(server_id, {}))
+
     for cond in CONDITION_ORDER:
+        if _condition_completed(results.get(cond)):
+            print(f"  ✓ {cond} (resumed from checkpoint)", flush=True)
+            continue
         print(f"  → {cond}", flush=True)
         try:
             if cond == "gepa" and gepa_max_full_evals is not None:
@@ -386,6 +430,9 @@ def _run_all_conditions(
                 "mean_score": 0.0,
                 "n_trials": 0,
             }
+        if mode:
+            accumulator[server_id] = results
+            aggregate_and_report(accumulator, mode=mode)
     return results
 
 
@@ -487,7 +534,9 @@ def main(args: argparse.Namespace) -> int:
     for server_id in servers_to_run:
         print(f"\n=== {server_id} ===")
         if conditions_filter == "all":
-            server_results = _run_all_conditions(server_id, n_trials=5)
+            server_results = _run_all_conditions(
+                server_id, n_trials=5, mode="full", accumulator=full_results
+            )
         else:
             print(f"  → {conditions_filter}")
             server_results = {

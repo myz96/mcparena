@@ -62,6 +62,7 @@ third_party/*
 # Secret patterns — defense in depth even when files are explicitly added
 **/api_key
 **/.env*
+!**/.env.example
 **/credentials*
 **/secrets.*
 

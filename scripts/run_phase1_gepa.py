@@ -47,7 +47,7 @@ def main() -> int:
     state = costs.get_state()
     stamp(f"phase 1 cost: ${state.total_usd:.4f} (Qwen3 rates)")
     stamp(f"  by condition: {dict(state.by_condition)}")
-    stamp(f"GEPA mean: {result.get('mean_score', 0):.2f}% " f"({result.get('n_trials', 0)} trials)")
+    stamp(f"GEPA mean: {result.get('mean_score', 0):.2f}% ({result.get('n_trials', 0)} trials)")
     stamp(f"baseline mean: {existing['raw_results']['wikipedia']['baseline']['mean_score']:.2f}%")
     return 0
 

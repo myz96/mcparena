@@ -12,15 +12,27 @@
 
 ### Pilot results so far
 
-| Server | Baseline (vanilla `dspy.ReAct`) | GEPA | Δ |
-|---|---|---|---|
-| Math MCP (easy) | 75% (3/4) | 75% (matched) | 0pp — saturated, no headroom |
-| Wikipedia (medium) | 16.7% (1/6) | **33.3% (2/6)** | **+16.7pp** |
-| OpenAPI Explorer (hard) | infeasible | — | single tool response = 1.6M tokens, exceeds 256K context |
+| Server | Baseline (vanilla `dspy.ReAct`) | GEPA | Δ | 95% CI |
+|---|---|---|---|---|
+| Math MCP (easy) | 75% (3/4) | 75% (matched) | 0pp — saturated, no headroom | — |
+| Wikipedia (medium) | 0% (0/16) | **12.5% (2/16)** | **+12.5pp** | [0.0pp, +31.25pp] |
+| OpenAPI Explorer (hard) | infeasible | — | single tool response = 1.6M tokens, exceeds 256K context | — |
 
-Wikipedia shows a real point-estimate lift, but n=6 → wide CI ([-33.3pp, +66.7pp]). Phase 2 (n=15) is planned to tighten the confidence interval. Per-condition cost on Qwen3-235b: ~$0.50-4 actual (Sonnet would have been 50-150× higher).
+Phase 2 on Wikipedia (n=16 paired evals at n_trials=8 per task × 2 tasks) cost $6.29 on Qwen3-235b. The CI lower bound clamps at exactly 0.0pp — strict pre-registration PROCEED gate (`CI_low > 0`) is *not* met; non-strict (`CI_low ≥ 0`) is. The pilot finding is therefore reported honestly as **borderline statistical, strong diagnostic** (see next section).
 
-The full vision — public leaderboard, server-author outreach, GitHub Action CI gate — ships only after the pilot decision gate is met.
+### What GEPA actually discovered
+
+Wikipedia baseline at 0% looked like a regression from Phase 1's 1/6 (n=6 was too small to see the true rate). Investigation found the LLM was hallucinating wrong kwarg names against the wikipedia MCP server (e.g. `topic=` instead of `topic_within_article=` for `extract_key_facts`; `section=` instead of `section_title=` for `summarize_article_section`) — 77+ `ValidationError: unexpected_keyword_argument` failures across the run. Tool descriptions don't surface the kwarg signature.
+
+GEPA's reflection LM read the failed trajectories and rewrote the ReAct prompt to include an explicit constraints block:
+
+> *"**Tool Limitations & Workarounds**: The `extract_key_facts` tool does not accept arguments named `topic`, `focus`, or `num_facts`. Instead, if the tool fails or its parameters are invalid, you must fall back to retrieving the full article using `get_article` and manually extract relevant facts..."*
+>
+> *"**Section Summarization Pitfall**: Always use the parameter name `section_title` (not `section`) when calling `summarize_article_section`. Otherwise, a validation error will occur."*
+
+**GEPA self-discovered the MCP server's schema quirks by reflecting on baseline failures and patched them into the prompt.** This is the exact failure mode mcparena is built to surface: MCP servers ship with tool descriptions that under-specify their argument schemas, and an optimizer that observes real trajectories can recover knowledge the base model couldn't infer. The +12.5pp lift is the side-effect; the demonstrable mechanism is the point.
+
+The full vision — public leaderboard, server-author outreach, GitHub Action CI gate — ships once the pilot stabilizes a second-server signal and the schema-discovery story is reproducible.
 
 ## Project ethos
 

@@ -63,7 +63,23 @@ mcparena pilot --shake-out --server wikipedia
 
 # Full pilot (3 servers × all tasks × 5 trials × 5 conditions)
 mcparena pilot
+
+# Optimize ANY MCP server — point at a command + task file, get back the
+# GEPA-discovered prompt (any tool-schema quirks GEPA found) + delta vs baseline
+mcparena optimize \
+  --server-cmd "uv run python -m wikipedia_mcp" \
+  --tasks examples/tasks_wikipedia.json \
+  --n-trials 3 \
+  --output-dir my-results/
 ```
+
+`mcparena optimize` writes `results.json` (raw scores + cost + discovered prompt)
+and `summary.md` (human-readable table + a fenced block of the prompt GEPA
+evolved). When the model has been hallucinating wrong tool kwargs against your
+server, the discovered prompt will typically contain a `### Critical Task
+Constraints` section listing them — fix those upstream in your tool descriptions
+and the lift may shrink to zero (a positive signal: your descriptions are now
+complete enough that the base model gets it right without GEPA).
 
 All runs write per-condition checkpoints to `pilot-results/{mode}.json`. Re-running the same command skips already-completed conditions.
 

@@ -1,0 +1,10 @@
+[
+  {
+    "task_id": "renewable_policy_audit",
+    "user_request": "Audit Wikipedia for renewable-energy policy coverage. For each of Solar energy and Wind power: (1) verify a section discussing environmental impact exists, (2) identify at least one policy framework article they both link to, (3) recommend one additional related technology from get_related_topics. Output JSON with keys solar_links_policy_present, wind_links_policy_present, recommended_tech, recommendation_rationale."
+  },
+  {
+    "task_id": "climate_negotiation_history",
+    "user_request": "Summarize the negotiation history of the United Nations Framework Convention on Climate Change. Use get_article and summarize_article_section to identify: (1) year of entry into force, (2) the two most consequential follow-on agreements, (3) what 'common but differentiated responsibilities' means. Return a 4-sentence answer covering all three."
+  }
+]

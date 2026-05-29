@@ -50,9 +50,9 @@ def test_judge_fixture_well_formed() -> None:
     assert len(records) == 10, "v5.1 pilot ships 10 hand-labeled transcripts"
     pass_count = sum(1 for r in records if r["expected"] is True)
     fail_count = sum(1 for r in records if r["expected"] is False)
-    assert (
-        pass_count == 5 and fail_count == 5
-    ), f"Expected balanced 5/5 pass-fail; got {pass_count}/{fail_count}"
+    assert pass_count == 5 and fail_count == 5, (
+        f"Expected balanced 5/5 pass-fail; got {pass_count}/{fail_count}"
+    )
     required = {"id", "user_request", "trajectory", "final_answer", "expected_outcome", "expected"}
     for r in records:
         assert required <= set(r.keys()), f"missing fields in {r.get('id', '?')}"

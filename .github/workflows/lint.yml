@@ -44,4 +44,4 @@ jobs:
         run: uv run python -c "import mcparena; print(mcparena.__version__)"
 
       - name: gepa <-> dspy import compatibility
-        run: uv run python -c "import dspy; from gepa import __version__ as gv; print('gepa', gv); _ = dspy.GEPA"
+        run: uv run python -c "import dspy, gepa; from importlib.metadata import version; print('gepa', version('gepa')); _ = dspy.GEPA"

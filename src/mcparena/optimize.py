@@ -114,6 +114,15 @@ def _bootstrap_delta(baseline_scores: list[float], gepa_scores: list[float]) -> 
         return {"error": "no paired samples"}
     b = np.array(baseline_scores[:n])
     g = np.array(gepa_scores[:n])
+    delta_pp = float(np.mean(g) - np.mean(b)) * 100
+    # scipy.stats.bootstrap requires ≥2 observations per sample. With n=1
+    # there is no CI to compute — return the point estimate only.
+    if n < 2:
+        return {
+            "delta_pp": delta_pp,
+            "n_paired": n,
+            "ci_skipped": "n_paired < 2; bootstrap requires ≥2 observations",
+        }
     ci = stats.bootstrap(
         (g, b),
         statistic=lambda gg, bb: float(np.mean(gg) - np.mean(bb)),
@@ -123,7 +132,7 @@ def _bootstrap_delta(baseline_scores: list[float], gepa_scores: list[float]) -> 
         method="percentile",
     )
     return {
-        "delta_pp": float(np.mean(g) - np.mean(b)) * 100,
+        "delta_pp": delta_pp,
         "ci_low_pp": float(ci.confidence_interval.low) * 100,
         "ci_high_pp": float(ci.confidence_interval.high) * 100,
         "n_paired": n,
@@ -139,8 +148,6 @@ def _write_summary_markdown(
     cost_usd: float,
 ) -> None:
     delta_pp = delta.get("delta_pp", 0.0)
-    ci_low = delta.get("ci_low_pp", 0.0)
-    ci_high = delta.get("ci_high_pp", 0.0)
     lines = [
         "# mcparena optimize — results",
         "",
@@ -150,10 +157,12 @@ def _write_summary_markdown(
         f"| **gepa** | **{gepa['mean_score']:.1%}** | {gepa['n_trials']} |",
         "",
         f"**Δ:** {delta_pp:+.2f}pp   ",
-        f"**95% CI:** [{ci_low:+.2f}pp, {ci_high:+.2f}pp]   ",
-        f"**cost:** ${cost_usd:.4f}",
-        "",
     ]
+    if "ci_low_pp" in delta and "ci_high_pp" in delta:
+        lines.append(f"**95% CI:** [{delta['ci_low_pp']:+.2f}pp, {delta['ci_high_pp']:+.2f}pp]   ")
+    elif "ci_skipped" in delta:
+        lines.append(f"**95% CI:** *skipped — {delta['ci_skipped']}*   ")
+    lines += [f"**cost:** ${cost_usd:.4f}", ""]
     if discovered_prompt:
         lines += [
             "## What GEPA discovered about your MCP server",

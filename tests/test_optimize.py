@@ -94,6 +94,36 @@ def test_bootstrap_delta_pairs_to_minimum_length() -> None:
     assert result["n_paired"] == 3
 
 
+def test_bootstrap_delta_single_pair_skips_ci_returns_point_estimate() -> None:
+    # n=1 — scipy.stats.bootstrap requires ≥2 obs; return delta_pp without CI.
+    result = optimize._bootstrap_delta(baseline_scores=[0.0], gepa_scores=[1.0])
+    assert result["delta_pp"] == pytest.approx(100.0)
+    assert result["n_paired"] == 1
+    assert "ci_low_pp" not in result
+    assert "ci_high_pp" not in result
+    assert "ci_skipped" in result
+
+
+def test_write_summary_markdown_handles_skipped_ci(tmp_path: Path) -> None:
+    out = tmp_path / "summary.md"
+    optimize._write_summary_markdown(
+        out,
+        baseline={"mean_score": 0.0, "n_trials": 1, "per_trial_scores": [0.0]},
+        gepa={"mean_score": 1.0, "n_trials": 1, "per_trial_scores": [1.0]},
+        delta={
+            "delta_pp": 100.0,
+            "n_paired": 1,
+            "ci_skipped": "n_paired < 2; bootstrap requires ≥2 observations",
+        },
+        discovered_prompt=None,
+        cost_usd=0.5,
+    )
+    content = out.read_text()
+    assert "+100.00pp" in content
+    assert "skipped" in content
+    assert "[+" not in content  # No CI bracket rendered
+
+
 def test_optimize_config_to_stdio_params_passes_through(tmp_path: Path) -> None:
     cfg = optimize.OptimizeConfig(
         server_cmd="python",

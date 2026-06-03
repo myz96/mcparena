@@ -162,6 +162,81 @@ cost cap.
 - **Per-server baseline scores not published by MCP-Bench;** we measure our
   own baseline as the per-server reference.
 
+## Outcomes (recorded post-run, 2026-05-25)
+
+The decision-criteria table above was locked before any results existed. This
+section records what actually ran, where the run diverged from the pre-reg,
+and how the outcome maps to the locked decision criteria. Raw results are in
+`pilot-results/{shake-out,phase2}.json`; this section is a narrative pointer,
+not a substitute.
+
+### What ran
+
+| Server | Tier | Conditions completed | n_trials | Result file |
+|---|---|---|---|---|
+| Math MCP | easy | baseline, gepa | 2 | `pilot-results/shake-out.json` |
+| Wikipedia | medium | baseline, gepa (Phase 1: n=3; Phase 2: n=8) | 3 → 8 | `pilot-results/{shake-out,phase2}.json` |
+| OpenAPI Explorer | hard | none | — | infeasible; see below |
+
+Deviations from the pre-reg:
+
+1. **OpenAPI Explorer (hard tier) was not run.** Smoke probe showed a single
+   tool response measured ~1.6M tokens, exceeding Qwen3-235b's 256K context
+   window. The server is structurally unable to complete a trajectory at this
+   model's context size. Not a transient failure; not retried.
+2. **`miprov2` condition was not completed on any server.** The shake-out run
+   on Wikipedia hit the cost cap (Sonnet-rate accounting bug, later patched)
+   before MIPROv2 produced any trial scores. Was not re-run because GEPA is
+   the newer optimizer (LLM-reflective vs MIPROv2's Bayesian search) and we
+   wanted to keep budget for tightening the GEPA-vs-baseline CI.
+3. **Axes (ii) and (iii) not run.** Same rationale — budget pivoted to
+   re-validating GEPA on Wikipedia at higher n_trials after the Phase 1
+   signal.
+4. **Phase 2 added (not in original pre-reg).** Re-ran baseline + GEPA on
+   Wikipedia at n_trials=8 (= 16 paired evals) to tighten the Phase 1
+   confidence interval, after the Phase 1 result showed GEPA at +16.7pp but
+   with n=6 CI of [-33.3pp, +66.7pp]. Phase 2 used the same task IDs and
+   model as Phase 1.
+
+### Result vs decision criteria
+
+| Server | baseline | gepa | delta | CI low | CI high | Maps to |
+|---|---|---|---|---|---|---|
+| Math MCP | 75% | 75% | 0pp | — (saturated, n=4) | — | weak/saturated |
+| Wikipedia (Phase 1, n=6) | 16.7% | 33.3% | +16.7pp | -33.3pp | +66.7pp | Wide CI; underpowered |
+| Wikipedia (Phase 2, n=16) | 0.0% | 12.5% | +12.5pp | **+0.0pp** | +31.25pp | Borderline strict / pass non-strict |
+
+**Pre-reg PROCEED gate** requires `CI low > 0 AND delta ≥ 10pp on ≥2 of 3
+servers`. Strictly read: **not met** — `CI_low = 0.0` exactly (bootstrap with
+2 successes always includes resamples where neither is drawn), and only one
+server has any signal at all. Non-strict reading (`CI_low ≥ 0`): met on one
+server only. Outcome maps to the **MIXED** band, not PROCEED.
+
+### Why the result is still narratively strong
+
+Phase 2 baseline at 0% reflects a structural failure: the Wikipedia MCP server
+exposes tools with quirky kwarg names (`extract_key_facts(title,
+topic_within_article, count)`) where the LLM hallucinates conventional names
+(`topic`, `max_facts`) and every call raises `ValidationError`. GEPA's
+reflection LM read the failed trajectories and rewrote the ReAct prompt to
+include a `### Critical Task Constraints` block listing the correct kwarg
+names — i.e. GEPA *self-discovered the MCP server's schema quirks*. This is
+the exact failure mode mcparena is built to surface. The 12.5pp lift is the
+side-effect; the demonstrable mechanism is the point.
+
+The MIXED outcome therefore triggers the planned "narrower Builder" path
+(per the decision table): optimizer ships as research module via `mcparena
+optimize` (CLI wedge added 2026-05-30); public leaderboard deferred until the
+schema-discovery mechanism replicates on a second viable server.
+
+### Next steps (not part of the pre-reg lock)
+
+- Find a second viable MCP-Bench server (math saturated, OpenAPI infeasible,
+  wiki only signal source).
+- Repeat the GEPA-schema-discovery measurement on that server.
+- If discovery replicates: PROCEED-style Builder. If not: re-frame as a
+  Wikipedia-specific case study.
+
 ## Out of scope for pilot (Phase 1 deliverables)
 
 - Cross-model judging (Gemini judges Claude)

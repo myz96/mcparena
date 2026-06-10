@@ -153,13 +153,46 @@ def persistent_session(params: StdioServerParameters) -> Any:
 
 
 def make_tools(session: PersistentMCPSession) -> list[Any]:
-    """Build `dspy.Tool` objects wrapping each MCP tool via the persistent session."""
+    """Build `dspy.Tool` objects wrapping each MCP tool via the persistent session.
+
+    Critically, the MCP tool's ``inputSchema`` is forwarded to ``dspy.Tool`` via
+    ``args``/``arg_desc`` so the program LM sees the real parameter names, types,
+    and descriptions. Without this, the ``_make_caller`` closure exposes only
+    ``**kwargs`` to dspy's signature introspection — the model then has to *guess*
+    each tool's arguments from the description prose alone, which produces
+    pervasive wrong-kwarg calls (e.g. ``from_timezone=`` when the schema wants
+    ``source_timezone=``) that the server rejects with "Missing required
+    arguments". Forwarding the schema is what lets the agent call the tool at all.
+    """
     import dspy
 
-    return [
-        dspy.Tool(_make_caller(session, spec["name"]), name=spec["name"], desc=spec["description"])
-        for spec in session.tool_specs
-    ]
+    out: list[Any] = []
+    for spec in session.tool_specs:
+        schema = spec.get("inputSchema")
+        tool_kwargs: dict[str, Any] = {}
+        if isinstance(schema, dict):
+            props = schema.get("properties", {})
+            props = props if isinstance(props, dict) else {}
+            # Always forward `args` (even when empty) so dspy never falls back to
+            # introspecting the `**kwargs` closure — that fallback advertises a
+            # phantom `{'kwargs': {}}` arg and hides the real schema.
+            tool_kwargs["args"] = props
+            arg_desc = {
+                name: sub["description"]
+                for name, sub in props.items()
+                if isinstance(sub, dict) and sub.get("description")
+            }
+            if arg_desc:
+                tool_kwargs["arg_desc"] = arg_desc
+        out.append(
+            dspy.Tool(
+                _make_caller(session, spec["name"]),
+                name=spec["name"],
+                desc=spec["description"],
+                **tool_kwargs,
+            )
+        )
+    return out
 
 
 def _make_caller(session: PersistentMCPSession, tool_name: str) -> Any:

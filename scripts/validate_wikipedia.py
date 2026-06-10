@@ -28,7 +28,7 @@ sys.stdout.reconfigure(line_buffering=True)  # type: ignore[union-attr]
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RESULTS_DIR = REPO_ROOT / "pilot-results" / "validation-wikipedia"
-WIKI_TASKS = REPO_ROOT / "examples" / "tasks_wikipedia.json"
+WIKI_TASKS = REPO_ROOT / "examples" / "tasks_wikipedia_mcpbench.json"
 
 N_BASELINE_RUNS = 3
 N_TRIALS_PER_RUN = 4

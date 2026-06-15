@@ -1,0 +1,152 @@
+[
+  {
+    "task_id": "uc_single_000",
+    "kind": "single",
+    "conversion_type": "pressure",
+    "user_request": "Convert 259.66 newtons per square centimeter to hectopascal using the unit-converter tools. Respond with the numeric converted value.",
+    "ground_truth": {
+      "converted_value": 25966.000000000004
+    },
+    "tolerance_rel": 0.001
+  },
+  {
+    "task_id": "uc_single_001",
+    "kind": "single",
+    "conversion_type": "speed",
+    "user_request": "Convert 918.32 miles per hour to meters per hour using the unit-converter tools. Respond with the numeric converted value.",
+    "ground_truth": {
+      "converted_value": 1477892.780897686
+    },
+    "tolerance_rel": 0.001
+  },
+  {
+    "task_id": "uc_single_002",
+    "kind": "single",
+    "conversion_type": "energy",
+    "user_request": "Convert 583.8 therm to terawatt hour using the unit-converter tools. Respond with the numeric converted value.",
+    "ground_truth": {
+      "converted_value": 1.7109489075899935e-05
+    },
+    "tolerance_rel": 0.001
+  },
+  {
+    "task_id": "uc_single_003",
+    "kind": "single",
+    "conversion_type": "area",
+    "user_request": "Convert 282.56 square mile to hectare using the unit-converter tools. Respond with the numeric converted value.",
+    "ground_truth": {
+      "converted_value": 73182.70404565403
+    },
+    "tolerance_rel": 0.001
+  },
+  {
+    "task_id": "uc_multi_000",
+    "kind": "multi",
+    "user_request": "You are validating 4 sensor readings. For EACH reading: convert the value to its target unit using the unit-converter tools, then mark PASS if the converted value >= its threshold, else FAIL.\n\nReadings:\n  - sensor_1: 982.8 gigabytes -> exabytes (threshold 0.0 exabytes)\n  - sensor_2: 730.1 fluid ounce -> cubic centimeter (threshold 25036.2621 cubic centimeter)\n  - sensor_3: 560.25 ounces per gallon -> tonnes per cubic meter (threshold 3.9504 tonnes per cubic meter)\n  - sensor_4: 966.64 short tons force -> kips (threshold 1915.5012 kips)\n\nReturn a JSON array; one object per sensor with keys: name, converted_value, status.",
+    "ground_truth": {
+      "items": [
+        {
+          "name": "sensor_1",
+          "converted_value": 9.153038263320922e-07,
+          "status": "PASS"
+        },
+        {
+          "name": "sensor_2",
+          "converted_value": 21591.633933216202,
+          "status": "FAIL"
+        },
+        {
+          "name": "sensor_3",
+          "converted_value": 4.195797408,
+          "status": "PASS"
+        },
+        {
+          "name": "sensor_4",
+          "converted_value": 1933.279832785059,
+          "status": "PASS"
+        }
+      ]
+    },
+    "tolerance_rel": 0.001
+  },
+  {
+    "task_id": "uc_multi_001",
+    "kind": "multi",
+    "user_request": "You are validating 6 sensor readings. For EACH reading: convert the value to its target unit using the unit-converter tools, then mark PASS if the converted value >= its threshold, else FAIL.\n\nReadings:\n  - sensor_1: 916.08 picometer -> micrometer (threshold 0.0008 micrometer)\n  - sensor_2: 828.24 pascal -> psi (threshold 0.1121 psi)\n  - sensor_3: 191.88 fortnights -> nanoseconds (threshold 2.3836569244683693e+17 nanoseconds)\n  - sensor_4: 448.52 hectare -> square mile (threshold 1.4411 square mile)\n  - sensor_5: 109.95 long tons force -> tonnes force (threshold 114.0053 tonnes force)\n  - sensor_6: 814.65 microseconds -> fortnights (threshold 0.0 fortnights)\n\nReturn a JSON array; one object per sensor with keys: name, converted_value, status.",
+    "ground_truth": {
+      "items": [
+        {
+          "name": "sensor_1",
+          "converted_value": 0.00091608,
+          "status": "PASS"
+        },
+        {
+          "name": "sensor_2",
+          "converted_value": 0.12012605589766848,
+          "status": "PASS"
+        },
+        {
+          "name": "sensor_3",
+          "converted_value": 2.32098048e+17,
+          "status": "FAIL"
+        },
+        {
+          "name": "sensor_4",
+          "converted_value": 1.7317454014945781,
+          "status": "PASS"
+        },
+        {
+          "name": "sensor_5",
+          "converted_value": 111.71435762256002,
+          "status": "FAIL"
+        },
+        {
+          "name": "sensor_6",
+          "converted_value": 6.734871031746032e-10,
+          "status": "PASS"
+        }
+      ]
+    },
+    "tolerance_rel": 0.001
+  },
+  {
+    "task_id": "uc_multi_002",
+    "kind": "multi",
+    "user_request": "You are validating 6 sensor readings. For EACH reading: convert the value to its target unit using the unit-converter tools, then mark PASS if the converted value >= its threshold, else FAIL.\n\nReadings:\n  - sensor_1: 798.14 foot pound\u2011force per second -> kilowatt (threshold 1.0029 kilowatt)\n  - sensor_2: 190.2 square foot -> hectare (threshold 0.0015 hectare)\n  - sensor_3: 70.02 gigabytes -> megabytes (threshold 76826.3175 megabytes)\n  - sensor_4: 842.62 cubic inch -> bushel (UK) (threshold 0.4401 bushel (UK))\n  - sensor_5: 838.03 speed of light -> meters per hour (threshold 913336587126518.2 meters per hour)\n  - sensor_6: 895.14 kilometers per hour -> inches per second (threshold 10141.0089 inches per second)\n\nReturn a JSON array; one object per sensor with keys: name, converted_value, status.",
+    "ground_truth": {
+      "items": [
+        {
+          "name": "sensor_1",
+          "converted_value": 1.0821341748,
+          "status": "PASS"
+        },
+        {
+          "name": "sensor_2",
+          "converted_value": 0.0017670158208,
+          "status": "PASS"
+        },
+        {
+          "name": "sensor_3",
+          "converted_value": 71700.48,
+          "status": "FAIL"
+        },
+        {
+          "name": "sensor_4",
+          "converted_value": 0.3796687886645447,
+          "status": "FAIL"
+        },
+        {
+          "name": "sensor_5",
+          "converted_value": 904446264156307.0,
+          "status": "FAIL"
+        },
+        {
+          "name": "sensor_6",
+          "converted_value": 9789.37007874799,
+          "status": "FAIL"
+        }
+      ]
+    },
+    "tolerance_rel": 0.001
+  }
+]

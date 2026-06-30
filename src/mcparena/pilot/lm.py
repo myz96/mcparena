@@ -34,15 +34,22 @@ Role = Literal["program", "reflection"]
 # Distinct registry keys per (model_id, role) so reflection and program get
 # separately configured `dspy.LM` instances even when the underlying model
 # is the same.
-_REGISTRY: dict[tuple[str, Role], Any] = {}
+_REGISTRY: dict[tuple[str, Role, float], Any] = {}
 
 
-def get_lm(model_id: str = DEFAULT_PILOT_MODEL, role: Role = "program") -> Any:
+def get_lm(
+    model_id: str = DEFAULT_PILOT_MODEL,
+    role: Role = "program",
+    temperature: float | None = None,
+) -> Any:
     """Return a configured `dspy.LM` for the given (model_id, role).
 
     role:
       - "program"    : program / judge LM — temperature 0.7, max_tokens 8192
       - "reflection" : GEPA reflection LM  — temperature 1.0, max_tokens 16000
+
+    ``temperature`` overrides the role default — e.g. pass 0.0 to run the agent
+    deterministically (reduces per-instance metric noise for optimizer search).
 
     Routes through OpenRouter by default (``OPENROUTER_API_KEY``). Pass an
     Anthropic-direct id like ``"anthropic/claude-sonnet-4-6"`` to bypass
@@ -55,18 +62,19 @@ def get_lm(model_id: str = DEFAULT_PILOT_MODEL, role: Role = "program") -> Any:
     if role not in ("program", "reflection"):
         raise ValueError(f"role must be 'program' or 'reflection', got {role!r}")
 
-    key = (model_id, role)
+    is_reflection = role == "reflection"
+    effective_temp = temperature if temperature is not None else (1.0 if is_reflection else 0.7)
+    key = (model_id, role, effective_temp)
     if key not in _REGISTRY:
         import dspy
 
         is_openrouter = model_id.startswith("openrouter/")
         api_key_env = "OPENROUTER_API_KEY" if is_openrouter else "ANTHROPIC_API_KEY"
-        is_reflection = role == "reflection"
 
         kwargs: dict[str, Any] = {
             "model": model_id,
             "api_key": os.environ.get(api_key_env),
-            "temperature": 1.0 if is_reflection else 0.7,
+            "temperature": effective_temp,
             "max_tokens": 16000 if is_reflection else 8192,
             # cache=False is critical: pilot replicates each task n_trials times
             # to measure variance. With cache=True (dspy.LM default), trials

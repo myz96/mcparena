@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -22,6 +23,13 @@ from typing import Any
 import dspy
 
 from mcparena.verifiable.tasks import generate_tasks, uc_stdio_params, verify
+
+
+def _failing_sensors(task: dict[str, Any], final_answer: str) -> set[str]:
+    """Names of sensors the verifier marked wrong (parsed from feedback)."""
+    _, fb = verify(task, final_answer)
+    return set(re.findall(r"sensor_\d+", fb))
+
 
 sys.stdout.reconfigure(line_buffering=True)  # type: ignore[union-attr]
 
@@ -35,6 +43,10 @@ PROGRAM_MODEL = os.environ.get("MCPARENA_PROGRAM_MODEL", "openrouter/qwen/qwen3-
 REFLECTION_MODEL = os.environ.get(
     "MCPARENA_REFLECTION_MODEL", "openrouter/qwen/qwen3-235b-a22b-2507"
 )
+# Agent temperature. 0.7 default; set 0 to test whether per-instance metric noise
+# (which breaks GEPA's accept/reject) is driven by agent stochasticity.
+AGENT_TEMP = float(os.environ.get("MCPARENA_AGENT_TEMP", "0.7"))
+STABILITY_RUNS = 2
 # All multi_hard: the only kind with real headroom (high-volume careful execution).
 # chain/aggregate/conditional saturate even for an 8B agent once tools are wired.
 TEST_COUNTS = {"multi_hard": 8}
@@ -94,11 +106,11 @@ def main() -> int:
 
     mode = sys.argv[1] if len(sys.argv) > 1 else "baseline"
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    program_lm = get_lm(model_id=PROGRAM_MODEL)
+    program_lm = get_lm(model_id=PROGRAM_MODEL, temperature=AGENT_TEMP)
     reflection_lm = get_lm(model_id=REFLECTION_MODEL, role="reflection")
     dspy.configure(lm=program_lm)
     costs.reset()
-    stamp(f"agent(program)={PROGRAM_MODEL}  reflection={REFLECTION_MODEL}")
+    stamp(f"agent(program)={PROGRAM_MODEL} temp={AGENT_TEMP}  reflection={REFLECTION_MODEL}")
 
     def metric_eval(example: Any, pred: Any, trace: Any = None) -> float:
         return verify(example.task_obj, getattr(pred, "final_answer", ""))[0]
@@ -118,6 +130,51 @@ def main() -> int:
             return dspy.Evaluate(
                 devset=testset, metric=metric_eval, num_threads=8, failure_score=0.0
             )(prog)
+
+        if mode == "stability":
+            runs: list[dict[str, tuple[float, set[str]]]] = []
+            for r in range(STABILITY_RUNS):
+                stamp(f"→ stability run {r + 1}/{STABILITY_RUNS} (temp={AGENT_TEMP})")
+                prog = dspy.ReAct("user_request -> final_answer", tools=tool_list, max_iters=30)
+                ev = _eval(prog)
+                rec: dict[str, tuple[float, set[str]]] = {}
+                for (_e, pred, score), t in zip(ev.results, test_tasks, strict=False):
+                    fa = str(getattr(pred, "final_answer", ""))
+                    rec[t["task_id"]] = (float(score), _failing_sensors(t, fa))
+                runs.append(rec)
+                stamp(f"  run {r + 1}: mean {sum(s for s, _ in rec.values()) / len(rec):.1%}")
+            costs.absorb_lm_history(program_lm, role="program", condition="stability")
+
+            stamp("")
+            stamp("=== stability: per-task scores across runs + failing-sensor overlap ===")
+            jaccards = []
+            for t in test_tasks:
+                tid = t["task_id"]
+                scores = [runs[i][tid][0] for i in range(STABILITY_RUNS)]
+                fails = [runs[i][tid][1] for i in range(STABILITY_RUNS)]
+                union = set().union(*fails)
+                inter = set(fails[0]).intersection(*fails[1:])
+                jac = len(inter) / len(union) if union else 1.0
+                jaccards.append(jac)
+                stamp(
+                    f"  {tid}: scores={[round(s, 2) for s in scores]} fails_overlap={jac:.2f} "
+                    f"union_fail={sorted(union)}"
+                )
+            overall = [
+                sum(runs[i][t["task_id"]][0] for t in test_tasks) / len(test_tasks)
+                for i in range(STABILITY_RUNS)
+            ]
+            stamp("")
+            stamp(
+                f"per-run overall: {[f'{m:.1%}' for m in overall]}  avg={sum(overall) / len(overall):.1%}"
+            )
+            stamp(
+                f"mean failing-sensor Jaccard: {sum(jaccards) / len(jaccards):.2f} "
+                "(1.0 = same failures each run = deterministic/systematic → GEPA can climb; "
+                "~0 = random → noise blocks GEPA)"
+            )
+            stamp(f"cost: ${costs.get_state().total_usd:.4f}")
+            return 0
 
         stamp("→ baseline (vanilla ReAct, verifier metric)")
         baseline_prog = dspy.ReAct("user_request -> final_answer", tools=tool_list, max_iters=30)
